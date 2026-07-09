@@ -12,4 +12,7 @@ export const TXL_TOKEN_MINT = new PublicKey("4Zao8ocPhmMgq7PdsYWyxvqySMGx7xb9cMf
 // 3. Create the Connection to Solana Devnet Blockchain
 export const connection = new Connection("https://api.devnet.solana.com", "confirmed");
 
+// 🌟 4. Dynamic API Token Export (Reads from .env.local, falls back to your current active token)
+export const API_TOKEN = process.env.NEXT_PUBLIC_TXLINE_API_TOKEN || "txl_dev_k7iof6rjxqm";
+
 console.log("TxLINE configuration file loaded successfully for:", NETWORK);
