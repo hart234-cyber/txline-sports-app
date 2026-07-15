@@ -34,7 +34,7 @@ export function countryCode(name: string, fallback?: string): string {
   const n = (fallback || name).toUpperCase();
   const map: Record<string, string> = {
     ARGENTINA: "AR", FRANCE: "FR", BRAZIL: "BR", GERMANY: "DE",
-    SPAIN: "ES", ENGLAND: "GB-ENG", "UNITED STATES": "US", USA: "US",
+    SPAIN: "ES", ENGLAND: "GB-ENG", "UNITED STATES": "US",
     PORTUGAL: "PT", NETHERLANDS: "NL", BELGIUM: "BE", CROATIA: "HR",
     MOROCCO: "MA", JAPAN: "JP", MEXICO: "MX", SENEGAL: "SN",
     NIGERIA: "NG", URUGUAY: "UY", COLOMBIA: "CO", ITALY: "IT",
@@ -43,7 +43,7 @@ export function countryCode(name: string, fallback?: string): string {
     USA: "US", POR: "PT", NED: "NL", BEL: "BE", CRO: "HR", MAR: "MA",
     JPN: "JP", MEX: "MX", SEN: "SN", NGA: "NG", URU: "UY", COL: "CO",
     VIETNAM: "VN", MYANMAR: "MM", "NEW ZEALAND": "NZ", INDIA: "IN",
-    AUSTRALIA: "AU", VIE: "VN", MYA: "MM", NZL: "NZ", IND: "IN", AUS: "AU",
+    VIE: "VN", MYA: "MM", NZL: "NZ", IND: "IN", AUS: "AU",
   };
   return map[n] || (n.length === 2 ? n : "UN");
 }
@@ -58,7 +58,13 @@ export function flagUrl(countryCodeStr: string, size: 20|40|80 = 40): string {
 export async function fetchFixtures(): Promise<{fixtures: Fixture[], source: "txline_live"|"txline_replay"|"demo"}> {
   try {
     // Pass API token from localStorage to server (server can't read localStorage)
-    const token = typeof window !== "undefined" ? localStorage.getItem("txline_permanent_token") || "" : "";
+    let token = typeof window !== "undefined" ? localStorage.getItem("txline_permanent_token") || "" : "";
+    if (token.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(token);
+        token = parsed.token || parsed.apiToken || token;
+      } catch {}
+    }
     const params = token && !token.startsWith("demo_") ? `?token=${encodeURIComponent(token)}` : "";
     const r = await fetch(`/api/fixtures${params}`, { cache: "no-store" });
     const j = await r.json();

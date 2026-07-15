@@ -68,12 +68,18 @@ export function speakPundit(text: string, onEnd?: () => void) {
     u.rate = 1.02;
     u.pitch = 1.0;
     u.volume = 0.95;
-    // pick a clear English voice if available
-    if (!_voice) {
-      const vs = window.speechSynthesis.getVoices();
-      _voice = vs.find(v => /en.*George|en.*Male|en-GB|en-US/i.test(v.name + v.lang)) || vs.find(v => v.lang.startsWith("en")) || null;
+    
+    // Pick clear English voice on invocation (handles async voice loading on mobile)
+    const vs = window.speechSynthesis.getVoices();
+    let selectedVoice = _voice;
+    if (!selectedVoice && vs.length > 0) {
+      selectedVoice = vs.find(v => /en.*George|en.*Male|en-GB|en-US/i.test(v.name + v.lang)) 
+        || vs.find(v => v.lang.startsWith("en")) 
+        || null;
+      if (selectedVoice) _voice = selectedVoice;
     }
-    if (_voice) u.voice = _voice;
+    
+    if (selectedVoice) u.voice = selectedVoice;
     if (onEnd) u.onend = onEnd;
     window.speechSynthesis.speak(u);
     return true;

@@ -34,6 +34,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useState, useEffect } from "react";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
@@ -480,55 +481,67 @@ export default function ActivatePage() {
   // ═══════════════════════════════════════════════════════════════════
 
   return (
-    <main className="min-h-screen bg-[#f6f6f7] dark:bg-[#0b0c10] text-[#1d1d1f] dark:text-[#e8e8ea] flex items-center justify-center p-6">
-      <div className="absolute inset-0 aurora-bg" />
-      <div className="relative w-full max-w-[520px]">
-        <div className="mb-4 text-[13px] text-zinc-500 dark:text-zinc-400">
-          <a href="/" className="hover:text-zinc-900 dark:hover:text-white">← Back to StreakLINE</a>
+    <main className="min-h-screen relative overflow-hidden flex items-center justify-center p-6">
+      {/* Stadium grid and glow backgrounds */}
+      <div className="stadium-glow" />
+      <div className="terminal-grid" />
+
+      <div className="relative w-full max-w-[540px] z-10">
+        <div className="mb-5 text-[11px] font-bold tracking-widest uppercase">
+          <Link href="/" className="text-[#6b7c6b] hover:text-[#d4af37] transition-colors">
+            ← Back to StreakLINE
+          </Link>
         </div>
-        <div className="glass rounded-[28px] p-8 shadow-[0_8px_40px_rgba(0,0,0,.06)] text-center">
-          <h1 className="text-[26px] font-[750] tracking-[-0.015em]">TxLINE Activation</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 text-[13px] mt-1 mb-5">
+        
+        <div className="glass-panel rounded-3xl p-8 bg-black/60 border-[#d4af37]/10 text-center shadow-2xl">
+          <h1 className="text-[26px] font-black text-[#f4f6f4] uppercase tracking-wider">TxLINE Activation</h1>
+          <p className="text-[#6b7c6b] text-[11px] mt-1 mb-6 font-mono">
             World Cup Free Tier · {NETWORK} · Service Level {SERVICE_LEVEL_ID}
           </p>
-          <div className="flex justify-center mb-5"><WalletMultiButton /></div>
+          
+          <div className="flex justify-center mb-6"><WalletMultiButton /></div>
 
           {wallet.publicKey && !apiKey && (
-            <div className="text-left bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-[16px] p-4">
-              <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono truncate">
-                Wallet: {wallet.publicKey.toBase58()}
+            <div className="text-left rounded-2xl p-5 border border-[#3a473a]/40 bg-[#0f140f]/60 anim-up">
+              <div className="text-[10px] text-[#6b7c6b] font-mono truncate">
+                Wallet: <strong className="text-[#d2dcd2]">{wallet.publicKey.toBase58()}</strong>
               </div>
-              <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
-                Network: Solana {NETWORK} · Program: {programId.toBase58().slice(0, 8)}…
+              <div className="text-[10px] text-[#6b7c6b] mt-1 font-mono">
+                Network: <strong className="text-[#00f0ff]">Solana {NETWORK}</strong> · Program: <strong className="text-[#d4af37]">{programId.toBase58().slice(0, 10)}…</strong>
               </div>
+              
               <button disabled={loading} onClick={handleActivation}
-                className="mt-3 w-full h-12 rounded-[14px] bg-[#0071e3] hover:bg-[#157ef0] disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white font-[600] text-[14px] transition-colors">
-                {loading ? "Processing…" : "Subscribe & Activate API Key"}
+                className="mt-4 w-full h-12 rounded-xl bg-[#d4af37] hover:bg-[#f4e8c1] disabled:bg-[#3a473a] text-black disabled:text-[#6b7c6b] font-extrabold text-[12px] tracking-widest uppercase transition-all shadow-[0_0_15px_rgba(212,175,55,0.15)] cursor-pointer">
+                {loading ? "Processing Escrow..." : "Subscribe & Activate Key"}
               </button>
-              <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-2">
-                Free — only devnet fees (~0.01 SOL).{" "}
-                <a className="underline" href="https://faucet.solana.com" target="_blank" rel="noreferrer">Get free SOL</a>
+              
+              <div className="text-[10px] text-[#6b7c6b] mt-3 font-medium text-center">
+                Free Subscription — requires devnet SOL (~0.01 SOL) for fees.{" "}
+                <a className="text-[#d4af37] hover:underline" href="https://faucet.solana.com" target="_blank" rel="noreferrer">Get Free SOL →</a>
               </div>
             </div>
           )}
 
           {apiKey && (
-            <div className="text-left bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-[16px] p-4">
-              <div className="flex justify-between items-center mb-2">
-                <div className="text-[12px] font-[650] text-emerald-800 dark:text-emerald-300">
-                  {apiKey.startsWith("demo_") ? "Demo mode (activation pending)" : "API Token active"}
+            <div className="text-left rounded-2xl p-5 border border-[#00ff88]/20 bg-[#00ff88]/5 anim-pop">
+              <div className="flex justify-between items-center mb-3">
+                <div className="text-[12px] font-black text-[#00ff88] uppercase tracking-wider">
+                  {apiKey.startsWith("demo_") ? "Demo Mode Active (Activation pending)" : "API Token Activated"}
                 </div>
-                <button onClick={clearKey} className="text-[11px] text-zinc-500 hover:text-zinc-700 dark:text-zinc-400">Reset</button>
+                <button onClick={clearKey} className="text-[10px] font-bold text-[#6b7c6b] hover:text-[#ff2255] uppercase tracking-wider">Reset</button>
               </div>
-              <div className="bg-white dark:bg-zinc-950 border border-emerald-100 dark:border-emerald-900/40 rounded-[10px] p-2.5 font-mono text-[11px] break-all text-zinc-700 dark:text-zinc-300">{apiKey}</div>
-              <a href="/" className="mt-3 block w-full text-center h-11 leading-[44px] rounded-[12px] bg-zinc-900 hover:bg-black dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white text-white font-[600] text-[13px]">
-                Play StreakLINE →
-              </a>
+              <div className="bg-black/60 border border-[#00ff88]/15 rounded-xl p-3.5 font-mono text-[11px] break-all text-[#d2dcd2] shadow-[inset_0_0_10px_rgba(0,0,0,0.4)]">{apiKey}</div>
+              
+              <Link href="/" className="mt-4 block w-full text-center h-12 leading-[48px] rounded-xl bg-gradient-to-r from-[#d4af37] to-[#f4e8c1] hover:from-[#f4e8c1] hover:to-[#d4af37] text-black font-extrabold text-[12px] tracking-widest uppercase transition-all shadow-[0_0_15px_rgba(212,175,55,0.15)]">
+                Enter Prediction Deck →
+              </Link>
             </div>
           )}
 
-          <div className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-4 bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-[12px] px-3 py-2 font-mono whitespace-pre-wrap text-left max-h-48 overflow-auto">
-            {status}{log ? "\n\n" + log : ""}
+          {/* Console Log display */}
+          <div className="text-[10px] text-[#6b7c6b] mt-5 bg-black/40 border border-[#3a473a]/40 rounded-xl px-4 py-3 font-mono whitespace-pre-wrap text-left max-h-48 overflow-auto shadow-[inset_0_0_10px_rgba(0,0,0,0.3)]">
+            <span className="text-[#00f0ff] font-bold">// ACTIVATION LOG MONITOR:</span>
+            {"\n\n"}{status}{log ? "\n\n" + log : ""}
           </div>
         </div>
       </div>
