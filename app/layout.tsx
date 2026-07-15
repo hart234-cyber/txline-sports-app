@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TxLINE Sports Tracker",
-  description: "Real-time World Cup Data Tracker",
+  title: "StreakLINE – World Cup Hi-Lo Stats",
+  description: "Guess Higher or Lower on live World Cup stats. Powered by TxLINE real-time data. Build your streak across 104 matches.",
 };
 
 export default function RootLayout({

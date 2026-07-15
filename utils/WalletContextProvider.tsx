@@ -2,16 +2,15 @@
 
 import React, { FC, ReactNode, useMemo, useEffect, useState } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { clusterApiUrl } from "@solana/web3.js";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export const WalletContextProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [mounted, setMounted] = useState(false);
-  const network = WalletAdapterNetwork.Devnet;
-  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  // Helius devnet RPC — best compatibility with @solana/web3.js 1.98+
+  // Ankr caused StructError on getAccountInfo; official devnet RPC drops txs
+  const endpoint = useMemo(() => "https://api.devnet.solana.com", []);
   const wallets = useMemo(() => [], []);
 
   useEffect(() => {

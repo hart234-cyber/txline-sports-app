@@ -1,236 +1,227 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { useState, useEffect } from "react";
-import { Program, AnchorProvider, Idl } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import axios from "axios";
 
 const WalletMultiButton = dynamic(
   async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
   { ssr: false }
 );
 
-const PROGRAM_ID = new PublicKey("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J");
-const TXL_TOKEN_MINT = new PublicKey("4Zao8ocPhmMgq7PdsYWyxvqySMGx7xb9cMftPMkEokRG");
-const API_ORIGIN = "https://txline-dev.txodds.com";
-
-const TXLINE_IDL: Idl = {
-  version: "0.1.0",
-  name: "txoracle",
-  instructions: [
-    {
-      name: "subscribe",
-      accounts: [
-        { name: "user", isMut: true, isSigner: true },
-        { name: "pricingMatrix", isMut: false, isSigner: false },
-        { name: "tokenMint", isMut: false, isSigner: false },
-        { name: "userTokenAccount", isMut: true, isSigner: false },
-        { name: "tokenTreasuryVault", isMut: true, isSigner: false },
-        { name: "tokenTreasuryPda", isMut: true, isSigner: false },
-        { name: "tokenProgram", isMut: false, isSigner: false },
-        { name: "associatedTokenProgram", isMut: false, isSigner: false },
-        { name: "systemProgram", isMut: false, isSigner: false }
-      ],
-      args: [
-        { name: "serviceLevelId", type: "u32" },
-        { name: "durationWeeks", type: "u32" }
-      ]
-    }
-  ]
-};
-
-export default function Home() {
-  const { connection } = useConnection();
-  const wallet = useWallet();
-  const [status, setStatus] = useState("Wallet connected. Ready to activate Tier.");
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // 🌟 Read stored token from local storage when page loads
-  useEffect(() => {
-    const savedKey = localStorage.getItem("txline_permanent_token");
-    if (savedKey) {
-      setApiKey(savedKey);
-      setStatus("🚀 Loaded permanent TxLINE token from browser memory.");
-    }
-  }, []);
-
-  const handleActivation = async () => {
-    if (!wallet.publicKey || !wallet.signTransaction || !wallet.signMessage) {
-      setStatus("Please ensure your wallet is connected and supports message signing!");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setStatus("Step 1/4: Requesting TxLINE Guest JWT...");
-      
-      const authResponse = await axios.post(`${API_ORIGIN}/auth/guest/start`);
-      const jwt = authResponse.data.token;
-      if (!jwt) throw new Error("Failed to secure Guest JWT.");
-
-      setStatus("Step 2/4: Preparing Account Derivations...");
-
-      const [tokenTreasuryPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("token_treasury_v2")],
-        PROGRAM_ID
-      );
-
-      const tokenTreasuryVault = getAssociatedTokenAddressSync(
-        TXL_TOKEN_MINT,
-        tokenTreasuryPda,
-        true,
-        TOKEN_2022_PROGRAM_ID,
-        ASSOCIATED_TOKEN_PROGRAM_ID
-      );
-
-      const [pricingMatrixPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("pricing_matrix")],
-        PROGRAM_ID
-      );
-
-      const userTokenAccount = getAssociatedTokenAddressSync(
-        TXL_TOKEN_MINT,
-        wallet.publicKey,
-        false,
-        TOKEN_2022_PROGRAM_ID,
-        ASSOCIATED_TOKEN_PROGRAM_ID
-      );
-
-      setStatus("Step 3/4: Broadcasting On-Chain Subscription (Check Solflare Popup)...");
-
-      const anchorWallet = {
-        publicKey: wallet.publicKey,
-        signTransaction: wallet.signTransaction.bind(wallet),
-        signAllTransactions: wallet.signAllTransactions ? wallet.signAllTransactions.bind(wallet) : async (txs: any) => txs,
-      };
-
-      const provider = new AnchorProvider(connection, anchorWallet, { commitment: "confirmed" });
-      const program = new Program(TXLINE_IDL, PROGRAM_ID, provider);
-
-      const txSig = await program.methods
-        .subscribe(1, 4)
-        .accounts({
-          user: wallet.publicKey,
-          pricingMatrix: pricingMatrixPda,
-          tokenMint: TXL_TOKEN_MINT,
-          userTokenAccount,
-          tokenTreasuryVault,
-          tokenTreasuryPda,
-          tokenProgram: TOKEN_2022_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
-
-      setStatus("Step 4/4: Signing token activation payload...");
-
-      const messageString = `${txSig}::${jwt}`;
-      const messageBytes = new TextEncoder().encode(messageString);
-      
-      const signatureBytes = await wallet.signMessage(messageBytes);
-      const walletSignature = Buffer.from(signatureBytes).toString("base64");
-
-      setStatus("Finalizing API registration with TxLINE Oracles...");
-
-      const activationResponse = await axios.post(
-        `${API_ORIGIN}/api/token/activate`,
-        { txSig, walletSignature, leagues: [] },
-        { headers: { Authorization: `Bearer ${jwt}` } }
-      );
-
-      const apiToken = activationResponse.data.token || activationResponse.data;
-      if (apiToken) {
-        const structuralToken = typeof apiToken === "object" ? JSON.stringify(apiToken) : apiToken;
-        
-        // 🌟 Save the token to local storage so it stays permanent!
-        localStorage.setItem("txline_permanent_token", structuralToken);
-        setApiKey(structuralToken);
-        setStatus("🚀 Success! Your permanent TxLINE API Token has been activated.");
-      } else {
-        throw new Error("Activation sequence did not return a token payload.");
-      }
-
-    } catch (error: any) {
-      console.error("TxLINE Pipeline Failed:", error);
-      if (error.message && error.message.includes("User rejected")) {
-        setStatus("Transaction or signature request was declined by user.");
-      } else {
-        // Safe Devnet Simulation Lock
-        const staticMockKey = "txl_dev_k7iof6rjxqm";
-        localStorage.setItem("txline_permanent_token", staticMockKey);
-        setApiKey(staticMockKey);
-        setStatus(`Simulation Secured: Verified signature sequence. Locked standard devnet token.`);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 🌟 Clear memory helper if you ever need to manually reset the app
-  const handleDisconnectClear = () => {
-    localStorage.removeItem("txline_permanent_token");
-    setApiKey(null);
-    setStatus("Token memory cleared. Ready for fresh verification.");
-  };
+export default function Landing() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 text-white p-6">
-      <div className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center shadow-xl">
-        <h1 className="text-3xl font-bold tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-          TxLINE Hub
-        </h1>
-        <p className="text-slate-400 text-sm mb-6">
-          World Cup Real-Time Oracle Activation Tier
-        </p>
+    <main className="min-h-screen relative overflow-hidden" style={{ background: "linear-gradient(160deg, #100c08 0%, #0e0a06 40%, #12100c 100%)" }}>
 
-        <div className="flex justify-center mb-6">
-          <WalletMultiButton className="!bg-blue-600 hover:!bg-blue-700 !transition-all !rounded-xl" />
+      {/* Geometric decorations - like image 1 */}
+      <div className="absolute top-[15%] left-[5%] w-[120px] h-[120px] border border-[#2a2420]/40 rotate-45 pointer-events-none" />
+      <div className="absolute top-[25%] left-[8%] w-[80px] h-[80px] border border-[#2a2420]/25 rotate-45 pointer-events-none" />
+      <div className="absolute bottom-[20%] left-[3%] w-[60px] h-[60px] border border-[#2a2420]/20 rotate-45 pointer-events-none" />
+      <div className="absolute top-[10%] right-[15%] w-[40px] h-[40px] border border-[#2a2420]/15 rotate-45 pointer-events-none" />
+
+      {/* Subtle warm glow */}
+      <div className="absolute top-[-100px] right-[10%] w-[600px] h-[600px] rounded-full bg-[#c4a44e]/[0.03] blur-[120px] pointer-events-none" />
+
+      <div className="relative max-w-[1100px] mx-auto px-6 sm:px-10">
+
+        {/* NAV */}
+        <nav className="flex items-center justify-between py-6">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg border border-[#c4a44e]/20 flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a44e" strokeWidth="2" strokeLinecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
+            <span className="text-[14px] font-bold tracking-wide text-[#d4c9b0]">STREAKLINE</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <Link href="/dashboard" className="text-[11px] font-medium tracking-wider text-[#6b6155] hover:text-[#d4c9b0] transition-colors uppercase">Dashboard</Link>
+            <Link href="/activate" className="text-[11px] font-medium tracking-wider text-[#6b6155] hover:text-[#d4c9b0] transition-colors uppercase">Setup</Link>
+            {mounted && <WalletMultiButton />}
+          </div>
+        </nav>
+
+        {/* HERO */}
+        <div className="grid lg:grid-cols-2 gap-12 items-center min-h-[calc(100vh-180px)] py-16 lg:py-0">
+
+          {/* Left */}
+          <div>
+            <div className="text-[10px] font-semibold tracking-[0.3em] text-[#c4a44e]/60 uppercase mb-6">
+              TxLINE World Cup 2026 — Powered by Solana
+            </div>
+
+            <h1 className="text-[52px] sm:text-[64px] lg:text-[76px] font-black tracking-[-0.03em] leading-[0.88] text-[#f0ebe0] uppercase">
+              Predict.<br/>
+              Streak.<br/>
+              <span className="text-[#c4a44e]">Win.</span>
+            </h1>
+
+            <p className="text-[14px] leading-relaxed text-[#7a7060] mt-7 max-w-[420px]">
+              The Hi-Lo World Cup stats game. Real-time blockchain-verified data from TxLINE.
+              Corners, shots, possession — will the next update go higher or lower?
+            </p>
+
+            <div className="flex flex-wrap gap-3 mt-8">
+              <Link href="/dashboard"
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg bg-[#c4a44e] hover:bg-[#d4b45e] text-[#0e0a06] font-bold text-[12px] tracking-wider uppercase transition-all active:scale-[0.97]">
+                Play Now
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </Link>
+              <Link href="/activate"
+                className="inline-flex items-center px-6 py-3.5 rounded-lg border border-[#3a3228] hover:border-[#5a4e3e] text-[#8a7e6e] hover:text-[#d4c9b0] font-semibold text-[12px] tracking-wider uppercase transition-all">
+                Activate TxLINE
+              </Link>
+            </div>
+
+            {/* Feature tags — no emoji */}
+            <div className="flex flex-wrap gap-3 mt-10">
+              {["Real-Time Data", "AI Pundit", "On-Chain Verified", "Global Leaderboard"].map(f => (
+                <span key={f} className="text-[9px] font-semibold tracking-[0.15em] text-[#5a5040] uppercase border border-[#2a2420]/60 px-3 py-1.5 rounded-md">{f}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Right — preview card */}
+          <div className="hidden lg:block">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-2xl bg-[#c4a44e]/[0.03] blur-[50px] scale-90" />
+              <div className="relative rounded-2xl border border-[#2a2420]/50 overflow-hidden" style={{ background: "linear-gradient(145deg, #1a1610 0%, #14120e 100%)" }}>
+
+                {/* Match preview header */}
+                <div className="relative px-6 pt-6 pb-5" style={{ background: "linear-gradient(135deg, rgba(55,114,255,0.08), rgba(196,164,78,0.04))" }}>
+                  <div className="text-[9px] font-semibold tracking-[0.2em] text-[#6b6155] uppercase mb-3">World Cup 2026 — Group F</div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img src="https://flagcdn.com/w40/fr.png" alt="" width={36} height={24} className="rounded-md shadow-lg object-cover"/>
+                      <div>
+                        <div className="text-[9px] font-semibold tracking-widest text-[#6b6155]">FRA</div>
+                        <div className="text-[15px] font-bold text-[#f0ebe0]">France</div>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-extrabold text-[#f0ebe0] tabular-nums">2<span className="text-[#3a3228] mx-1.5">:</span>1</div>
+                      <div className="text-[8px] font-bold tracking-widest text-[#2ecc71]">LIVE 67'</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="text-[9px] font-semibold tracking-widest text-[#6b6155]">ESP</div>
+                        <div className="text-[15px] font-bold text-[#f0ebe0]">Spain</div>
+                      </div>
+                      <img src="https://flagcdn.com/w40/es.png" alt="" width={36} height={24} className="rounded-md shadow-lg object-cover"/>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stat preview */}
+                <div className="px-6 py-4 border-t border-[#2a2420]/40">
+                  <div className="text-[8px] font-bold tracking-[0.2em] text-[#5a5040] uppercase">Next TxLINE Update</div>
+                  <div className="text-[18px] font-extrabold text-[#f0ebe0] mt-1">Corners</div>
+                  <div className="flex items-end gap-8 mt-3">
+                    <div>
+                      <div className="text-[8px] font-bold tracking-widest text-[#5a5040]">CURRENT</div>
+                      <div className="text-[42px] font-black text-[#f0ebe0] leading-none">7</div>
+                    </div>
+                    <div className="pb-1">
+                      <div className="text-[8px] font-bold tracking-widest text-[#5a5040]">AI CONFIDENCE</div>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <div className="w-24 h-2 bg-[#1a1610] rounded-full overflow-hidden">
+                          <div className="h-full w-[72%] bg-gradient-to-r from-[#2ecc71] to-[#27ae60] rounded-full"/>
+                        </div>
+                        <span className="text-[14px] font-black text-[#2ecc71] tabular-nums">72%</span>
+                        <span className="text-[8px] font-bold tracking-widest text-[#2ecc71]">HIGHER</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mock buttons */}
+                <div className="px-6 pb-4 grid grid-cols-2 gap-2">
+                  <div className="h-10 rounded-lg border border-[#2a2420]/50 flex items-center justify-center text-[11px] font-bold text-[#6b6155] tracking-wider uppercase">Lower</div>
+                  <div className="h-10 rounded-lg bg-[#c4a44e] flex items-center justify-center text-[11px] font-bold text-[#0e0a06] tracking-wider uppercase">Higher</div>
+                </div>
+
+                {/* Streak preview */}
+                <div className="px-6 py-3 border-t border-[#2a2420]/40 flex items-center justify-between">
+                  <div className="flex gap-6">
+                    <div><div className="text-[7px] font-bold tracking-widest text-[#5a5040]">STREAK</div><div className="text-xl font-black text-[#c4a44e]">12</div></div>
+                    <div><div className="text-[7px] font-bold tracking-widest text-[#5a5040]">BEST</div><div className="text-xl font-black text-[#5a5040]">12</div></div>
+                  </div>
+                  <span className="text-[9px] font-bold tracking-wider text-[#c4a44e]/60 uppercase">On fire</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {wallet.publicKey && !apiKey && (
-          <div className="mt-4 p-4 bg-slate-950/50 border border-slate-800 rounded-xl text-left">
-            <p className="text-xs text-slate-500 font-mono block truncate">
-              Wallet Connected: {wallet.publicKey.toBase58()}
-            </p>
-            <div className="mt-4">
-              <button 
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white text-sm font-semibold py-3 px-4 rounded-xl transition-all shadow-md shadow-emerald-900/20"
-                onClick={handleActivation}
-              >
-                {loading ? "Processing..." : "Sign & Generate TxLINE API Key"}
-              </button>
+        {/* HOW IT WORKS */}
+        <div className="py-20 border-t border-[#2a2420]/30">
+          <div className="text-center mb-14">
+            <div className="text-[9px] font-semibold tracking-[0.3em] text-[#c4a44e]/50 uppercase mb-3">The Method</div>
+            <h2 className="text-[32px] sm:text-[40px] font-black tracking-tight text-[#f0ebe0] uppercase">How It Works</h2>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { n: "01", title: "Pick a match", desc: "Choose any live or scheduled World Cup fixture from the schedule" },
+              { n: "02", title: "Read the AI", desc: "Our AI pundit analyzes TxLINE odds and gives a confidence percentage" },
+              { n: "03", title: "Higher or lower", desc: "Predict if the next stat update goes up or down. Swipe or tap" },
+              { n: "04", title: "Build streak", desc: "Correct extends your streak. Wrong resets to zero. Top the global board" },
+            ].map(s => (
+              <div key={s.n} className="rounded-xl border border-[#2a2420]/40 p-5 hover:border-[#c4a44e]/15 transition-all" style={{ background: "rgba(18,16,12,0.6)" }}>
+                <div className="text-[10px] font-bold tracking-[0.2em] text-[#c4a44e]/40 mb-3">{s.n}</div>
+                <h3 className="text-[13px] font-bold text-[#e0d8c8] uppercase tracking-wide mb-2">{s.title}</h3>
+                <p className="text-[11px] text-[#6b6155] leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* TECH */}
+        <div className="py-16 border-t border-[#2a2420]/30">
+          <div className="grid md:grid-cols-2 gap-10">
+            <div>
+              <div className="text-[9px] font-semibold tracking-[0.3em] text-[#c4a44e]/40 uppercase mb-2">Infrastructure</div>
+              <h3 className="text-[22px] font-black text-[#f0ebe0] uppercase tracking-wide mb-3">Powered by TxLINE</h3>
+              <p className="text-[12px] text-[#6b6155] leading-relaxed mb-4">
+                Every stat update is fetched from TxLINE's real-time sports data API and cryptographically anchored on the Solana blockchain. Fully verifiable. No manipulation.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {["Fixtures API", "Scores SSE", "Odds Snapshots", "Stat Validation", "Merkle Proofs"].map(f => (
+                  <span key={f} className="text-[9px] font-semibold tracking-wider text-[#5a5040] uppercase border border-[#2a2420]/40 px-2.5 py-1 rounded-md">{f}</span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] font-semibold tracking-[0.3em] text-[#c4a44e]/40 uppercase mb-2">Network</div>
+              <h3 className="text-[22px] font-black text-[#f0ebe0] uppercase tracking-wide mb-3">Built on Solana</h3>
+              <p className="text-[12px] text-[#6b6155] leading-relaxed mb-4">
+                Free World Cup tier on Solana devnet. No TxL payment required. Connect wallet, subscribe on-chain, start predicting in under a minute.
+              </p>
+              <div className="flex gap-4">
+                <Link href="/dashboard" className="text-[11px] font-bold tracking-wider text-[#c4a44e] hover:text-[#d4b45e] uppercase transition-colors">Start playing</Link>
+                <Link href="/activate" className="text-[11px] tracking-wider text-[#5a5040] hover:text-[#8a7e6e] uppercase transition-colors">Setup guide</Link>
+              </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {apiKey && (
-          <div className="mt-6 p-5 bg-emerald-950/30 border border-emerald-800/50 rounded-xl text-left">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-emerald-400 font-semibold text-sm">🔑 Your Locked TxLINE API Token:</h3>
-              <button 
-                onClick={handleDisconnectClear}
-                className="text-[10px] text-red-400 hover:underline bg-transparent border-none cursor-pointer"
-              >
-                Reset Key
-              </button>
-            </div>
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-xs select-all break-all text-emerald-300">
-              {apiKey}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-2">
-              This token is securely saved. It will remain identical when disconnecting and connecting.
-            </p>
-          </div>
-        )}
+        {/* CTA */}
+        <div className="py-16 border-t border-[#2a2420]/30 text-center">
+          <div className="text-[9px] font-semibold tracking-[0.3em] text-[#c4a44e]/40 uppercase mb-4">Start Your Career Now</div>
+          <h2 className="text-[28px] sm:text-[38px] font-black text-[#f0ebe0] uppercase tracking-wide mb-6">Ready to Play?</h2>
+          <Link href="/dashboard"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-[#c4a44e] hover:bg-[#d4b45e] text-[#0e0a06] font-bold text-[13px] tracking-wider uppercase transition-all active:scale-[0.97]">
+            Launch Dashboard
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </Link>
+        </div>
 
-        <p className="text-xs text-slate-500 mt-6 font-mono p-2 bg-slate-950/40 rounded-lg border border-slate-800/30">
-          {status}
-        </p>
+        {/* FOOTER */}
+        <footer className="py-8 border-t border-[#2a2420]/20 text-[9px] tracking-wider text-[#3a3228] uppercase flex flex-wrap justify-between gap-4">
+          <span>2026 StreakLINE — TxLINE x Superteam Earn</span>
+          <span>Solana devnet — Fan prediction game — No real-money wagering</span>
+        </footer>
       </div>
     </main>
   );
