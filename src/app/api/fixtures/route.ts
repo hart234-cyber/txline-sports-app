@@ -4,8 +4,8 @@ export const runtime = "nodejs";
 
 // TxLINE API configuration
 const TXLINE_ORIGINS = [
-  "https://txline.txodds.com",
-  "https://txline-dev.txodds.com",
+  "https://txline-dev.txodds.com",  // devnet FIRST — free-tier tokens are devnet
+  "https://txline.txodds.com",       // mainnet fallback
 ];
 
 function getApiToken(req: Request): string {

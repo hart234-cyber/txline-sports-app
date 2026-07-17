@@ -444,8 +444,10 @@ export default function ActivatePage() {
       setStatus("API token activated. You're ready to play.");
       appendLog("✓ API Token: " + tokenStr.slice(0, 24) + "…");
       appendLog("");
-      appendLog("Add to .env.local and restart dev server:");
-      appendLog("NEXT_PUBLIC_TXLINE_API_TOKEN=" + tokenStr);
+      appendLog("✓ Token saved in browser — dashboard will use it immediately.");
+      appendLog("  For Vercel deployment, add this env var:");
+      appendLog("  TXLINE_API_TOKEN=" + tokenStr);
+      appendLog("  (server-side only — do NOT use NEXT_PUBLIC_ prefix)");
 
     } catch (error: any) {
       console.error("TxLINE activation failed:", error);
@@ -481,7 +483,7 @@ export default function ActivatePage() {
   // ═══════════════════════════════════════════════════════════════════
 
   return (
-    <main className="min-h-screen relative overflow-hidden flex items-center justify-center p-6">
+    <main className="min-h-screen relative overflow-y-auto flex items-center justify-center p-6">
       {/* Stadium grid and glow backgrounds */}
       <div className="stadium-glow" />
       <div className="terminal-grid" />

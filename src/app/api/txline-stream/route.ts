@@ -17,8 +17,8 @@ export const runtime = "nodejs";
  */
 
 const TXLINE_ORIGINS = [
-  "https://txline.txodds.com",
-  "https://txline-dev.txodds.com",
+  "https://txline-dev.txodds.com",  // devnet FIRST — free-tier tokens are devnet
+  "https://txline.txodds.com",       // mainnet fallback
 ];
 
 function getApiToken(req: Request): string {
@@ -27,6 +27,10 @@ function getApiToken(req: Request): string {
     process.env.NEXT_PUBLIC_TXLINE_API_TOKEN ||
     "";
   if (env && !env.startsWith("demo_") && !env.includes("paste")) return env;
+  // EventSource can't send custom headers — token is passed as a URL query param
+  const url = new URL(req.url);
+  const qToken = url.searchParams.get("token") || "";
+  if (qToken && !qToken.startsWith("demo_") && !qToken.includes("paste")) return qToken;
   return req.headers.get("x-txline-token") || "";
 }
 
@@ -52,8 +56,13 @@ const DEMO_FIXTURES = [
   { fixtureId: 2626004, home: "Spain", homeCode: "ESP", away: "Argentina", awayCode: "ARG" },
 ];
 
-function makeDemoStream(fixtureId: string | null): ReadableStream {
+// Bug 2 fix: accept fixtureStatus so demo stream never fires goals for non-live matches
+function makeDemoStream(fixtureId: string | null, fixtureStatus?: string | null): ReadableStream {
   const encoder = new TextEncoder();
+
+  // Only emit goal events if the fixture is actually in play
+  const LIVE_STATUSES = new Set(["LIVE", "1H", "2H", "HT", "live", "1h", "2h", "ht"]);
+  const fixtureIsLive = fixtureStatus ? LIVE_STATUSES.has(fixtureStatus) : false;
 
   // Pick the right demo fixture
   const demoFixture =
@@ -86,12 +95,13 @@ function makeDemoStream(fixtureId: string | null): ReadableStream {
         seq++;
         minute = Math.min(90, minute + Math.floor(Math.random() * 3) + 1);
 
-        // ~12% chance of a goal each tick (realistic for demo)
+        // ~12% chance of a goal each tick — BUT only if the fixture is live
+        // Bug 2 fix: never emit goal events for scheduled/upcoming matches
         const goalChance = Math.random();
         let eventType = "tick";
         let scorer: string | null = null;
 
-        if (goalChance < 0.12) {
+        if (fixtureIsLive && goalChance < 0.12) {
           eventType = "goal";
           const homeScores = Math.random() > 0.5;
           if (homeScores) {
@@ -140,6 +150,8 @@ function makeDemoStream(fixtureId: string | null): ReadableStream {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const fixtureId = searchParams.get("fixtureId");
+  // Bug 2 fix: dashboard passes fixtureStatus so demo stream knows if match is live
+  const fixtureStatus = searchParams.get("fixtureStatus");
   const API_TOKEN = getApiToken(req);
 
   // ── Try real TxLINE SSE stream ─────────────────────────────────────────────
@@ -183,8 +195,8 @@ export async function GET(req: Request) {
     }
   }
 
-  // ── Fallback: demo stream with real WC2026 fixture data ───────────────────
-  return new Response(makeDemoStream(fixtureId), {
+  // ── Fallback: demo stream with real WC2026 fixture data ───────────────────────
+  return new Response(makeDemoStream(fixtureId, fixtureStatus), {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",

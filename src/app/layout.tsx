@@ -23,7 +23,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased bg-[#080c11] text-white overflow-hidden">
+      <body className="antialiased bg-[#080c11] text-white">
         <WalletContextProvider>
           {children}
         </WalletContextProvider>

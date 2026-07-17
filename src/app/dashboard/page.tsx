@@ -512,6 +512,8 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [sseConnected, setSseConnected] = useState(false);
   const [sseIsLive, setSseIsLive] = useState(false);
+  // Bug 1 fix: server-side token presence — fetched once on mount via /api/token-status
+  const [serverHasToken, setServerHasToken] = useState(false);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const prevScoresRef = useRef<{ home: number; away: number }>({ home: 0, away: 0 });
@@ -523,6 +525,18 @@ export default function Dashboard() {
     setIsMuted(localStorage.getItem("streakline_mute") === "true");
     const sl = localStorage.getItem("streakline_joined_leagues");
     if (sl) setJoinedLeagues(JSON.parse(sl));
+
+    // Bug 1 fix: check server-side token status immediately on mount
+    // Also pass localStorage token as query param — server can't read localStorage,
+    // but the user may have activated via /activate and only stored it there.
+    const lsToken = localStorage.getItem("txline_permanent_token") || "";
+    const tokenParam = lsToken && !lsToken.startsWith("demo_") && !lsToken.startsWith("{")
+      ? `?token=${encodeURIComponent(lsToken)}`
+      : "";
+    fetch(`/api/token-status${tokenParam}`)
+      .then(r => r.json())
+      .then((d: { hasToken: boolean }) => { if (d.hasToken) setServerHasToken(true); })
+      .catch(() => {});
 
     fetchFixtures().then(({ fixtures, source }) => {
       setFixtures(fixtures);
@@ -542,6 +556,11 @@ export default function Dashboard() {
   }, []);
 
   // SSE stream
+  // Bug 2 fix: only open SSE for matches that are actually live.
+  // When serverHasToken is true (real API configured), we NEVER open the
+  // demo stream for a scheduled/upcoming match — goals must come from real data.
+  // When no token is set (demo mode), we still open the stream but fireGoal()
+  // is guarded below so it only fires if the fixture is marked LIVE.
   useEffect(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -551,7 +570,21 @@ export default function Dashboard() {
     setSseIsLive(false);
     if (!fixture) return;
 
-    const url = `/api/txline-stream?fixtureId=${fixture.fixtureId}`;
+    // Bug 2 fix: if we have a real token, only stream live matches
+    const fixtureIsLive = isMatchLive(fixture);
+    if (serverHasToken && !fixtureIsLive) {
+      // Match hasn't started — don't open SSE at all, no goals possible
+      return;
+    }
+
+    // Pass fixtureStatus so the demo stream knows whether to emit goals
+    // Also pass localStorage token — EventSource can't send custom headers,
+    // so we pass the token as a URL query param for the server to pick up.
+    const lsTokenForSse = localStorage.getItem("txline_permanent_token") || "";
+    const tokenQp = lsTokenForSse && !lsTokenForSse.startsWith("demo_") && !lsTokenForSse.startsWith("{")
+      ? `&token=${encodeURIComponent(lsTokenForSse)}`
+      : "";
+    const url = `/api/txline-stream?fixtureId=${fixture.fixtureId}&fixtureStatus=${encodeURIComponent(fixture.status || "Scheduled")}${tokenQp}`;
     const es = new EventSource(url);
     eventSourceRef.current = es;
     prevScoresRef.current = { home: fixture.homeScore ?? 0, away: fixture.awayScore ?? 0 };
@@ -569,8 +602,16 @@ export default function Dashboard() {
         if (newHome !== null && newAway !== null) {
           const prev = prevScoresRef.current;
           if (newHome > prev.home || newAway > prev.away) {
-            const scorer = newHome > prev.home ? (d.home || fixture.home) : (d.away || fixture.away);
-            fireGoal(newHome, newAway, scorer);
+            // Bug 2 fix: ONLY fire GOAL if the fixture is currently live.
+            // This prevents demo stream ticks from triggering GOAL on scheduled matches.
+            setFixture(currentFixture => {
+              if (currentFixture && isMatchLive(currentFixture)) {
+                const scorer = newHome > prev.home ? (d.home || currentFixture.home) : (d.away || currentFixture.away);
+                fireGoal(newHome, newAway, scorer);
+                addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `GOAL! ${scorer} scores! ${newHome}–${newAway}`, icon: "⚽", type: "goal" });
+              }
+              return currentFixture;
+            });
           }
           prevScoresRef.current = { home: newHome, away: newAway };
           setFixture(prev => prev ? {
@@ -578,10 +619,6 @@ export default function Dashboard() {
             minute: typeof d.minute === "number" ? d.minute : prev.minute,
             status: typeof d.minute === "number" ? (d.minute <= 45 ? "1H" : "2H") : prev.status,
           } : prev);
-          if (d.type === "goal" || (newHome > prevScoresRef.current.home || newAway > prevScoresRef.current.away)) {
-            const scorer = newHome > prevScoresRef.current.home ? (d.home || fixture.home) : (d.away || fixture.away);
-            addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `GOAL! ${scorer} scores! ${newHome}–${newAway}`, icon: "⚽", type: "goal" });
-          }
         }
         if (d.stats) setLiveStats(d.stats);
         if (d.type === "yellowCard") addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `Yellow card — ${d.player || "foul"}`, icon: "🟨", type: "card" });
@@ -597,7 +634,7 @@ export default function Dashboard() {
     es.onmessage = handleScoreEvent;
     es.onerror = () => setSseConnected(false);
     return () => { es.close(); };
-  }, [fixture?.fixtureId]);
+  }, [fixture?.fixtureId, serverHasToken]);
 
   const addLiveEvent = useCallback((event: LiveEvent) => {
     setLiveEvents(prev => [event, ...prev].slice(0, 30));
@@ -836,7 +873,7 @@ export default function Dashboard() {
               <>
                 <span className="live-dot-green" style={{ width: 6, height: 6 }} />
                 <span className="text-[9px] font-bold" style={{ color: "#00e87a" }}>
-                  {sseIsLive ? "TxLINE Live" : "TxLINE Demo"}
+                  {sseIsLive ? "TxLINE Live" : serverHasToken ? "TxLINE Ready" : "TxLINE Demo"}
                 </span>
               </>
             ) : (
@@ -920,31 +957,40 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
               {/* Center */}
               <div className="xl:col-span-8 space-y-4">
-                {/* Data source banner */}
-                {mounted && (
-                  <div className="rounded-xl px-4 py-3 flex items-center justify-between"
-                       style={sseIsLive
-                         ? { background: "rgba(0,232,122,0.05)", border: "1px solid rgba(0,232,122,0.15)" }
-                         : { background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.12)" }}>
-                    <div>
-                      <div className="text-[11px] font-black text-white">
-                        {sseIsLive ? "🟢 TxLINE Live Data" : "🔵 Demo Mode — Real WC2026 Schedule"}
+                {/* Data source banner
+                    Bug 1 fix: use serverHasToken (server-side env check) OR sseIsLive
+                    (confirmed by SSE connected event) to determine active state.
+                    This means the banner disappears immediately on page load when
+                    TXLINE_API_TOKEN is set in Vercel env vars — no waiting for SSE. */}
+                {mounted && (() => {
+                  const isActive = serverHasToken || sseIsLive;
+                  return (
+                    <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+                         style={isActive
+                           ? { background: "rgba(0,232,122,0.05)", border: "1px solid rgba(0,232,122,0.15)" }
+                           : { background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.12)" }}>
+                      <div>
+                        <div className="text-[11px] font-black text-white">
+                          {isActive ? "🟢 TxLINE API Active" : "🔵 Demo Mode — Real WC2026 Schedule"}
+                        </div>
+                        <div className="text-[9px] text-[#8899bb] mt-0.5">
+                          {isActive
+                            ? sseIsLive
+                              ? "Streaming live scores from TxLINE API"
+                              : "TxLINE API token configured — live data ready when matches go live"
+                            : "Showing real FIFA WC2026 fixtures. Visit /activate to connect live TxLINE feeds."}
+                        </div>
                       </div>
-                      <div className="text-[9px] text-[#8899bb] mt-0.5">
-                        {sseIsLive
-                          ? "Streaming live scores from TxLINE API"
-                          : "Showing real FIFA WC2026 fixtures. Visit /activate to connect live TxLINE feeds."}
-                      </div>
+                      {!isActive && (
+                        <Link href="/activate"
+                          className="text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors"
+                          style={{ color: "#00d4ff", border: "1px solid rgba(0,212,255,0.2)" }}>
+                          Activate →
+                        </Link>
+                      )}
                     </div>
-                    {!sseIsLive && (
-                      <Link href="/activate"
-                        className="text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors"
-                        style={{ color: "#00d4ff", border: "1px solid rgba(0,212,255,0.2)" }}>
-                        Activate →
-                      </Link>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
 
                 {fixture ? (
                   <LiveMatchHero
@@ -1128,14 +1174,14 @@ export default function Dashboard() {
                   <div className="text-[10px] font-black text-white uppercase tracking-widest mb-3">System Info</div>
                   <div className="space-y-2 text-[10px] font-mono">
                     {[
-                      { l: "Data Source", v: sseIsLive ? "TxLINE Live" : "TxLINE Demo" },
+                      { l: "Data Source", v: sseIsLive ? "TxLINE Live" : serverHasToken ? "TxLINE Ready" : "TxLINE Demo" },
                       { l: "Network", v: "Solana Devnet" },
                       { l: "Protocol", v: "SPL Token 2022" },
                       { l: "Tier", v: "Service Level 1" },
                     ].map(r => (
                       <div key={r.l} className="flex justify-between py-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                         <span className="text-[#3d4f6a]">{r.l}</span>
-                        <span className={`font-bold ${r.l === "Data Source" && sseIsLive ? "text-[#00e87a]" : "text-[#c8d4e8]"}`}>{r.v}</span>
+                        <span className={`font-bold ${r.l === "Data Source" && (sseIsLive || serverHasToken) ? "text-[#00e87a]" : "text-[#c8d4e8]"}`}>{r.v}</span>
                       </div>
                     ))}
                   </div>
