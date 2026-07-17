@@ -68,7 +68,7 @@ export default function Landing() {
 
       <div className="relative max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-16 z-10">
         {/* NAV */}
-        <nav className="flex items-center justify-between py-6 border-b border-[#d4af37]/10 glass-panel rounded-2xl px-6 mb-12">
+        <nav className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-b border-[#d4af37]/10 glass-panel rounded-2xl px-6 mb-12">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl border border-[#d4af37]/20 flex items-center justify-center bg-black/40 shadow-[0_0_15px_rgba(212,175,55,0.15)]">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4af37" strokeWidth="2.5" strokeLinecap="round" className="glow-gold">
@@ -81,7 +81,7 @@ export default function Landing() {
               <span className="text-[7px] font-black tracking-[0.3em] text-[#d4af37]/75 uppercase block leading-none">World Cup 2026</span>
             </div>
           </div>
-          <div className="flex items-center gap-8">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 md:gap-8">
             <Link href="/dashboard" className="text-[11px] font-bold tracking-widest text-[#6b7c6b] hover:text-[#d4af37] transition-all uppercase">Dashboard</Link>
             <Link href="/activate" className="text-[11px] font-bold tracking-widest text-[#6b7c6b] hover:text-[#d4af37] transition-all uppercase">Activation</Link>
             {mounted && <WalletMultiButton />}
@@ -104,7 +104,7 @@ export default function Landing() {
             </h1>
 
             <p className="text-[14px] leading-relaxed text-[#6b7c6b] mt-8 max-w-[480px]">
-              Step onto the ultimate high-performance prediction pitch. Guess **Higher** or **Lower** on live stats (corners, possession, fouls) powered by real-time blockchain-verified data feeds. Accumulate your streak across 104 games.
+              Step onto the ultimate high-performance prediction pitch. Guess <strong className="text-[#d4af37]">Higher</strong> or <strong className="text-[#ff2255]">Lower</strong> on live stats (corners, possession, fouls) powered by real-time blockchain-verified data feeds. Accumulate your streak across 104 games.
             </p>
 
             <div className="flex flex-wrap gap-4 mt-10">

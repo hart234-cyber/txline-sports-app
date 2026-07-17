@@ -187,25 +187,39 @@ export default function Dashboard() {
         {/* ═══ MAIN AREA ═══ */}
         <div className="flex-1 lg:ml-[240px]">
           {/* Header */}
-          <header className="sticky top-4 z-20 glass-panel rounded-2xl px-6 py-4 flex items-center justify-between bg-black/60 border-[#d4af37]/10 mb-6">
-            {/* Mobile Brand */}
-            <div className="lg:hidden flex items-center gap-3">
-              <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg border border-[#d4af37]/15 flex items-center justify-center bg-black/40">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d4af37" strokeWidth="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /></svg>
-                </div>
-                <span className="text-[12px] font-black text-[#f4f6f4] tracking-widest">STREAKLINE</span>
-              </Link>
+          <header className="sticky top-4 z-20 glass-panel rounded-2xl px-4 py-3 sm:px-6 sm:py-4 flex flex-col lg:flex-row items-center justify-between gap-3 bg-black/90 border-[#d4af37]/10 mb-6">
+            <div className="w-full flex items-center justify-between lg:w-auto lg:justify-start gap-4">
+              {/* Mobile Brand */}
+              <div className="lg:hidden flex items-center gap-3">
+                <Link href="/" className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg border border-[#d4af37]/15 flex items-center justify-center bg-black/40">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d4af37" strokeWidth="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /></svg>
+                  </div>
+                  <span className="text-[12px] font-black text-[#f4f6f4] tracking-widest hidden min-[400px]:block">STREAKLINE</span>
+                </Link>
+              </div>
+
+              {/* Wallet Button */}
+              <div className="flex items-center gap-3">
+                {!apiKey && (
+                  <Link href="/activate" className="hidden sm:block text-[9px] font-black tracking-widest text-[#d4af37]/80 hover:text-white uppercase transition-colors">
+                    Get Dev Token
+                  </Link>
+                )}
+                <WalletMultiButton />
+              </div>
             </div>
 
             {/* Mobile tabs */}
-            <div className="lg:hidden flex gap-1 rounded-xl p-1 bg-black/40 border border-[#3a473a]/40">
-              {sideNav.map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black tracking-wider uppercase transition-all ${
-                    tab === t.id ? "bg-[#d4af37]/10 text-[#d4af37]" : "text-[#6b7c6b]"
-                  }`}>{t.label}</button>
-              ))}
+            <div className="lg:hidden w-full sm:w-auto flex justify-center">
+              <div className="flex gap-1 rounded-xl p-1 bg-black/40 border border-[#3a473a]/40 w-full sm:w-auto justify-around">
+                {sideNav.map(t => (
+                  <button key={t.id} onClick={() => setTab(t.id)}
+                    className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-[9px] font-black tracking-wider uppercase transition-all text-center ${
+                      tab === t.id ? "bg-[#d4af37]/10 text-[#d4af37]" : "text-[#6b7c6b]"
+                    }`}>{t.label}</button>
+                ))}
+              </div>
             </div>
 
             {/* Desktop breadcrumb */}
@@ -213,15 +227,6 @@ export default function Dashboard() {
               <span className="text-[#6b7c6b]">Terminal</span>
               <span className="text-[#3a473a]">/</span>
               <span className="text-[#d4af37] font-extrabold">{tab}</span>
-            </div>
-
-            <div className="flex items-center gap-4">
-              {!apiKey && (
-                <Link href="/activate" className="hidden sm:block text-[9px] font-black tracking-widest text-[#d4af37]/80 hover:text-white uppercase transition-colors">
-                  Get Dev Token
-                </Link>
-              )}
-              <WalletMultiButton />
             </div>
           </header>
 

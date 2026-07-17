@@ -35,27 +35,28 @@ export function getPunditTake(
   const base = { corners: 64, shots: 58, shots_on_target: 61, possession_home: 52, fouls: 55, attacks: 66 }[stat] ?? 58;
   const minuteBias = Math.min(18, Math.floor((minute || 60) / 6));
   const confidence = Math.max(48, Math.min(82, base + (Math.random() * 10 - 5) + (minuteBias > 8 ? 4 : 0)));
+  const roundedConfidence = Math.round(confidence);
   
   const homeTrait = teamTrait(homeCode);
   const awayTrait = teamTrait(awayCode);
   const m = minute || 62;
 
   const templates: Record<StatKey, (hi: boolean) => string> = {
-    corners: hi => `${homeCode || "Home"} pushing wide, ${homeTrait} overloads building. Market leaning Higher at ${confidence}%.`,
+    corners: hi => `${homeCode || "Home"} pushing wide, ${homeTrait} overloads building. Market leaning Higher at ${roundedConfidence}%.`,
     shots: hi => `Shot tempo rising – ${m}' and both sides opening up. TxLINE odds favour Higher.`,
-    shots_on_target: hi => `Quality chances increasing. xG pressure building, market at ${confidence}% Higher.`,
+    shots_on_target: hi => `Quality chances increasing. xG pressure building, market at ${roundedConfidence}% Higher.`,
     possession_home: hi => `${homeCode || "Home"} settling into their ${homeTrait} rhythm. Possession edge likely to hold.`,
-    fouls: hi => `Intensity climbing in midfield – foul count trending up, ${confidence}% Higher on TxLINE.`,
+    fouls: hi => `Intensity climbing in midfield – foul count trending up, ${roundedConfidence}% Higher on TxLINE.`,
     attacks: hi => `Dangerous attacks accelerating – ${awayTrait} transitions creating space. Higher favoured.`,
   };
 
-  const direction: "hi" | "lo" | "neutral" = confidence > 58 ? "hi" : confidence < 50 ? "lo" : "neutral";
+  const direction: "hi" | "lo" | "neutral" = roundedConfidence > 58 ? "hi" : roundedConfidence < 50 ? "lo" : "neutral";
   const hi = direction !== "lo";
   const text = templates[stat](hi);
 
   const audible = text.replace(/%/g, " percent").replace(/'/g, " minute ");
 
-  return { text, confidence: Math.round(confidence), direction, audible };
+  return { text, confidence: roundedConfidence, direction, audible };
 }
 
 // Web Speech TTS – bounty bonus points
