@@ -503,6 +503,8 @@ export default function Dashboard() {
   // Live feed events from SSE
   const [liveEvents, setLiveEvents] = useState<LiveEvent[]>([]);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
+  // Telegram broadcasts from /api/telegram-pundit connected directly into chat
+  const [telegramBroadcasts, setTelegramBroadcasts] = useState<{ time: string; text: string; team: string; event: string; message?: string }[]>([]);
 
   // League/wallet state
   const [leagueLoading, setLeagueLoading] = useState(false);
@@ -621,10 +623,10 @@ export default function Dashboard() {
           } : prev);
         }
         if (d.stats) setLiveStats(d.stats);
-        if (d.type === "yellowCard") addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `Yellow card — ${d.player || "foul"}`, icon: "🟨", type: "card" });
-        else if (d.type === "redCard") addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `Red card! ${d.player || ""}`, icon: "🟥", type: "card" });
-        else if (d.type === "corner") addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: "Corner kick awarded", icon: "⛳", type: "corner" });
-        else if (d.type === "var") addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: "VAR check in progress", icon: "📺", type: "var" });
+        if (d.type === "yellowCard") { addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `Yellow card — ${d.player || "foul"}`, icon: "🟨", type: "card" }); setTelegramBroadcasts(prev => [{ time: `${d.minute ?? "??"}\'`, text: `⚠️ CARD ALERT: Yellow shown to ${d.player || "unknown"} — tactical disruption likely.`, team: fixture?.home || "Team", event: "card" }, ...prev].slice(0, 10)); }
+        else if (d.type === "redCard") { addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `Red card! ${d.player || ""}`, icon: "🟥", type: "card" }); setTelegramBroadcasts(prev => [{ time: `${d.minute ?? "??"}\'`, text: `🔴 RED CARD: ${d.player || "player"} sent off. Formation must adapt now!`, team: fixture?.away || "Opponent", event: "red_card" }, ...prev].slice(0, 10)); }
+        else if (d.type === "corner") { addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: "Corner kick awarded", icon: "⛳", type: "corner" }); setTelegramBroadcasts(prev => [{ time: `${d.minute ?? "??"}\'`, text: `⛳ CORNER: Set-piece opportunity awarded. Watch the tactical shift on the pitch.`, team: fixture?.home || "Team", event: "corner" }, ...prev].slice(0, 10)); }
+        else if (d.type === "var") { addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: "VAR check in progress", icon: "📺", type: "var" }); setTelegramBroadcasts(prev => [{ time: `${d.minute ?? "??"}\'`, text: `📺 VAR CHECK: Tactical review in progress. Real-time flow interrupted.`, team: "TxLINE", event: "var" }, ...prev].slice(0, 10)); }
       } catch {}
     };
 
@@ -750,6 +752,9 @@ export default function Dashboard() {
     setGoalAlert({ home, away, scorer: scorerTeam });
     triggerConfetti();
     setTimeout(() => setGoalAlert(null), 4000);
+    // Telegram broadcast message directly into chat — connected to tactical flow
+    const tgMsg = `🎙️ [StreakLINE AI Pundit Bot Live]\n\n"UNBELIEVABLE! ${scorerTeam || fixture?.home || "the striker"} has absolutely shredded the defense. Absolute class! Leading ${home}–${away}!"`;
+    setTelegramBroadcasts(prev => [{ time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), text: tgMsg, team: scorerTeam || fixture?.home || "Home", event: "goal", message: tgMsg }, ...prev].slice(0, 20));
     if (typeof window !== "undefined" && fixture) {
       const tgActive = localStorage.getItem("streakline_tg_active") === "true";
       const tgToken = localStorage.getItem("streakline_tg_token") || "";
@@ -1202,6 +1207,11 @@ export default function Dashboard() {
 
         {/* Formation */}
         <div className="p-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+          {/* Live movement indicator connected to chat broadcasts */}
+          <div className="flex items-center gap-1.5 mb-2 px-1">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500 ${telegramBroadcasts.length > 0 || liveEvents.length > 0 ? "bg-[#00e87a] animate-pulse" : "bg-[#3d4f6a]"}`} />
+            <span className="text-[7px] font-black uppercase tracking-[0.2em] text-[#3d4f6a]">{telegramBroadcasts.length > 0 || liveEvents.length > 0 ? "Live Movement Active" : "Static Formation"}</span>
+          </div>
           <div className="relative w-full h-44 rounded-xl overflow-hidden formation-pitch">
             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 150" fill="none">
               <rect width="200" height="150" fill="#071207" rx="10" />
@@ -1214,14 +1224,14 @@ export default function Dashboard() {
               <rect x="155" y="45" width="35" height="60" stroke="#0f2a0f" strokeWidth="1" fill="none" />
             </svg>
             {[[12,50],[28,20],[28,40],[28,60],[28,80],[48,30],[48,50],[48,70],[65,20],[65,50],[65,80]].map(([x,y],i) => (
-              <div key={i} className="absolute w-5 h-5 rounded-full flex items-center justify-center text-[6px] font-black text-white"
-                   style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", background: "#3b82f6", border: "2px solid #93c5fd", boxShadow: "0 0 8px rgba(59,130,246,0.4)" }}>
+              <div key={i} className={`absolute w-5 h-5 rounded-full flex items-center justify-center text-[6px] font-black text-white transition-all duration-700 ${telegramBroadcasts.length > 0 || liveEvents.length > 0 ? "scale-110 shadow-[0_0_16px_rgba(59,130,246,0.7)]" : ""}`}
+                   style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%,-50%) ${telegramBroadcasts.length > 0 || liveEvents.length > 0 ? "rotate(" + (i * 2) + "deg)" : ""}`, background: "#3b82f6", border: "2px solid #93c5fd", boxShadow: telegramBroadcasts.length > 0 || liveEvents.length > 0 ? "0 0 16px rgba(59,130,246,0.7)" : "0 0 8px rgba(59,130,246,0.4)" }}>
                 {i+1}
               </div>
             ))}
             {[[88,50],[72,20],[72,40],[72,60],[72,80],[52,30],[52,50],[52,70],[35,20],[35,50],[35,80]].map(([x,y],i) => (
-              <div key={i} className="absolute w-5 h-5 rounded-full flex items-center justify-center text-[6px] font-black text-white"
-                   style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)", background: "#ef4444", border: "2px solid #fca5a5", boxShadow: "0 0 8px rgba(239,68,68,0.3)" }}>
+              <div key={i} className={`absolute w-5 h-5 rounded-full flex items-center justify-center text-[6px] font-black text-white transition-all duration-700 ${telegramBroadcasts.length > 0 || liveEvents.length > 0 ? "scale-110 shadow-[0_0_16px_rgba(239,68,68,0.7)]" : ""}`}
+                   style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%,-50%) ${telegramBroadcasts.length > 0 || liveEvents.length > 0 ? "rotate(-" + (i * 2) + "deg)" : ""}`, background: "#ef4444", border: "2px solid #fca5a5", boxShadow: telegramBroadcasts.length > 0 || liveEvents.length > 0 ? "0 0 16px rgba(239,68,68,0.7)" : "0 0 8px rgba(239,68,68,0.3)" }}>
                 {i+1}
               </div>
             ))}
@@ -1252,6 +1262,22 @@ export default function Dashboard() {
                 <span className="text-[#3d4f6a] uppercase tracking-wider">{sseIsLive ? "TxLINE Live Stream" : sseConnected ? "TxLINE Ready" : serverHasToken ? "TxLINE Demo" : "No Token — Demo Mode"}</span>
               </div>
             )}
+            {/* Telegram broadcasts from /api/telegram-pundit — connected directly into chat */}
+            {telegramBroadcasts.length > 0 && telegramBroadcasts.slice(0, 4).map((tg, i) => (
+              <div key={`tg-${i}`} className="flex gap-2 text-[9px] animate-fade-in">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[7px] font-black text-black shrink-0 shadow-sm bg-gradient-to-br from-[#e8c84a] to-[#a8882a]">
+                  📢
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="font-black text-[#e8c84a] tracking-wide text-[8px]">TELEGRAM</span>
+                    <span className="text-[#3d4f6a] text-[7px] font-mono">{tg.time}</span>
+                    <span className="text-[6px] font-black px-1 rounded bg-[#9b6dff]/10 text-[#9b6dff] uppercase">Broadcast</span>
+                  </div>
+                  <p className="text-[#f0f4ff] leading-relaxed text-[8px] font-medium">{tg.message || tg.text}</p>
+                </div>
+              </div>
+            ))}
             {/* Dynamic live events from SSE stream */}
             {liveEvents.length > 0 ? (
               liveEvents.slice(0, 6).map((e, i) => (
@@ -1265,7 +1291,7 @@ export default function Dashboard() {
                       <span className="font-bold text-[#c8d4e8]">TxLINE</span>
                       <span className="text-[#3d4f6a]">{e.time}</span>
                       {e.type === "goal" && <span className="text-[7px] font-black px-1 rounded bg-[#e8c84a]/10 text-[#e8c84a]">GOAL</span>}
-                      {e.type === "redCard" && <span className="text-[7px] font-black px-1 rounded bg-[#ff3355]/10 text-[#ff3355]">RED</span>}
+                      {e.type === "card" && <span className="text-[7px] font-black px-1 rounded bg-[#ff3355]/10 text-[#ff3355]">CARD</span>}
                     </div>
                     <p className={`leading-relaxed ${e.type === "goal" ? "text-[#f0f4ff] font-medium" : "text-[#8899bb]"}`}>{e.text}</p>
                   </div>
