@@ -291,8 +291,6 @@ streakline/
 ---
 
 ## 🤝 Team
-Samswitchy
-hart234-cyber
 
 Built with ❤️ for the **TxLINE × Solana World Cup 2026 Hackathon**.
 
