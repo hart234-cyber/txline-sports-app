@@ -295,6 +295,7 @@ streakline/
 Built with ❤️ for the **TxLINE × Solana World Cup 2026 Hackathon**.
 
 - **GitHub:** [hart234-cyber](https://github.com/hart234-cyber)
+- **GitHub:** [Samswitchy](https://github.com/Samswitchy)
 - **Repo:** [txline-sports-app](https://github.com/hart234-cyber/txline-sports-app)
 
 ---
