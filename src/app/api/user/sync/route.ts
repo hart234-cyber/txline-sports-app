@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
+import { rateLimit } from "@/middleware/rateLimit";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // Production rate limiting
+  const rate = rateLimit("user-sync", { maxRequests: 30, windowMs: 60000 });
+  const rateCheck = rate(req);
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { success: false, error: "Rate limit exceeded. Try again later.", retryAfter: rateCheck.retryAfter },
+      { status: 429, headers: { "Retry-After": String(rateCheck.retryAfter) } }
+    );
+  }
+
   try {
     const { walletAddress, currentStreak, bestStreak, username } =
       await req.json();
