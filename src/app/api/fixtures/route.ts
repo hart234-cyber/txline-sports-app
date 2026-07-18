@@ -81,7 +81,8 @@ function getDemoFixtures() {
       homeCode: "FRA",
       away: "England",
       awayCode: "ENG",
-      startTime: new Date("2026-07-17T19:00:00Z").getTime(),
+      // Dynamic live match: started 35 minutes ago → 1H (live now)
+      startTime: now - 35 * 60 * 1000,
       venue: "Hard Rock Stadium, Miami",
       round: "3rd Place",
       competition: "FIFA World Cup 2026",
@@ -92,7 +93,8 @@ function getDemoFixtures() {
       homeCode: "ESP",
       away: "Argentina",
       awayCode: "ARG",
-      startTime: new Date("2026-07-19T20:00:00Z").getTime(),
+      // Upcoming final
+      startTime: now + 26 * 60 * 60 * 1000,
       venue: "MetLife Stadium, New Jersey",
       round: "Final",
       competition: "FIFA World Cup 2026",
@@ -104,7 +106,8 @@ function getDemoFixtures() {
       homeCode: "ESP",
       away: "France",
       awayCode: "FRA",
-      startTime: new Date("2026-07-14T23:00:00Z").getTime(),
+      // Recent FT (2 hours ago, within 3h window)
+      startTime: now - 2 * 60 * 60 * 1000,
       venue: "MetLife Stadium, New Jersey",
       round: "Semi-Final",
       competition: "FIFA World Cup 2026",
@@ -115,7 +118,8 @@ function getDemoFixtures() {
       homeCode: "ARG",
       away: "England",
       awayCode: "ENG",
-      startTime: new Date("2026-07-15T23:00:00Z").getTime(),
+      // FT (4 hours ago, kept visible for context but filtered by 3h rule)
+      startTime: now - 4 * 60 * 60 * 1000,
       venue: "AT&T Stadium, Dallas",
       round: "Semi-Final",
       competition: "FIFA World Cup 2026",
