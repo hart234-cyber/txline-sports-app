@@ -505,6 +505,7 @@ export default function Dashboard() {
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   // Telegram broadcasts from /api/telegram-pundit connected directly into chat
   const [telegramBroadcasts, setTelegramBroadcasts] = useState<{ time: string; text: string; team: string; event: string; message?: string }[]>([]);
+  const [chatMessage, setChatMessage] = useState("");
 
   // League/wallet state
   const [leagueLoading, setLeagueLoading] = useState(false);
@@ -773,6 +774,30 @@ export default function Dashboard() {
       }
     }
   }, [fixture, isMuted]);
+
+  const sendChat = useCallback(async () => {
+    if (!chatMessage.trim()) return;
+    const msg = chatMessage.trim();
+    setChatMessage("");
+    const tgActive = localStorage.getItem("streakline_tg_active") === "true";
+    const tgToken = localStorage.getItem("streakline_tg_token") || "";
+    const tgChat = localStorage.getItem("streakline_tg_chat") || "";
+    // Show message locally immediately (both broadcast + live event feed)
+    const userEvent = { time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), text: msg, icon: "💬", type: "tick" as const };
+    addLiveEvent(userEvent);
+    setTelegramBroadcasts(prev => [{ time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), text: msg, team: "You", event: "user", message: msg }, ...prev].slice(0, 20));
+    // Send to Telegram if configured
+    if (tgActive && tgToken && tgChat) {
+      fetch("/api/telegram-pundit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          botToken: tgToken, chatId: tgChat, eventType: "message",
+          text: msg, team: "You",
+        }),
+      }).catch(() => {});
+    }
+  }, [chatMessage, fixture]);
 
   const makeGuess = (dir: "hi" | "lo") => {
     if (!round || guess) return;
@@ -1324,10 +1349,11 @@ export default function Dashboard() {
           </div>
           <div className="p-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
             <div className="flex gap-2">
-              <input type="text" placeholder="Join the chat…"
+              <input type="text" value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } }} placeholder="Join the chat…"
                 className="flex-1 rounded-lg px-3 py-1.5 text-[10px] text-white placeholder-[#3d4f6a] focus:outline-none"
                 style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }} />
-              <button className="w-8 h-8 rounded-lg flex items-center justify-center text-black transition-colors"
+              <button onClick={() => sendChat()}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-black transition-colors hover:scale-105"
                       style={{ background: "linear-gradient(135deg,#e8c84a,#c8a030)" }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
               </button>

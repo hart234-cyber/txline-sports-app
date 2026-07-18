@@ -30,14 +30,16 @@ export async function POST(req: Request) {
   }
 
   try {
+    const body = await req.json();
     // Basic server-side auth: require a secret header to prevent open abuse
     const authHeader = req.headers.get("x-streakline-secret") || "";
     const expectedSecret = process.env.STREAKLINE_SECRET || process.env.TELEGRAM_SECRET || "";
-    if (expectedSecret && authHeader !== expectedSecret) {
+    // User chat messages don't require auth; broadcasts (goal/card/etc) do
+    if (expectedSecret && body.eventType !== "message" && authHeader !== expectedSecret) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const { botToken, chatId, eventType, homeTeam, awayTeam, score, details, scorer, player, team, oldOdds, newOdds } = await req.json();
+    const { botToken, chatId, eventType, homeTeam, awayTeam, score, details, scorer, player, team, oldOdds, newOdds } = body;
 
     if (!botToken || !chatId) {
       return NextResponse.json({ success: false, error: "Bot token and Chat ID are required" }, { status: 400 });
