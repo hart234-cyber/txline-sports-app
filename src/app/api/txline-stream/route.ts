@@ -22,10 +22,7 @@ const TXLINE_ORIGINS = [
 ];
 
 function getApiToken(req: Request): string {
-  const env =
-    process.env.TXLINE_API_TOKEN ||
-    process.env.NEXT_PUBLIC_TXLINE_API_TOKEN ||
-    "";
+  const env = process.env.TXLINE_API_TOKEN || "";
   if (env && !env.startsWith("demo_") && !env.includes("paste")) return env;
   // EventSource can't send custom headers — token is passed as a URL query param
   const url = new URL(req.url);

@@ -75,13 +75,13 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       demo: true,
-      message:
-        "Streak saved locally. Set DATABASE_URL to enable persistent leaderboard.",
+      message: "Streak saved locally. Set DATABASE_URL to enable persistent leaderboard.",
       user: {
         walletAddress,
         currentStreak: currentStreak || 0,
         bestStreak: bestStreak || 0,
       },
+      toast: { type: "warning", message: "Leaderboard uses localStorage — set DATABASE_URL for persistent scores." },
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import dynamic from "next/dynamic";
@@ -12,7 +12,7 @@ const WalletMultiButton = dynamic(
 
 // ── Particle component ──────────────────────────────────────────────────────
 function Particles() {
-  const particles = Array.from({ length: 28 }, (_, i) => ({
+  const particles = useMemo(() => Array.from({ length: 28 }, (_, i) => ({
     id: i,
     size: 2 + Math.random() * 3,
     left: Math.random() * 100,
@@ -22,7 +22,7 @@ function Particles() {
     drift: (Math.random() - 0.5) * 60,
     color: i % 5 === 0 ? "#e8c84a" : i % 5 === 1 ? "#00d4ff" : i % 5 === 2 ? "#00e87a" : i % 5 === 3 ? "#9b6dff" : "#ffffff",
     opacity: 0.15 + Math.random() * 0.35,
-  }));
+  })), []);
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">

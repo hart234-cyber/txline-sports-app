@@ -3,15 +3,28 @@
 import React, { FC, ReactNode, useMemo, useEffect, useState } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+import {
+  PhantomWalletAdapter,
+  SolflareWalletAdapter,
+  CoinbaseWalletAdapter,
+} from "@solana/wallet-adapter-wallets";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export const WalletContextProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [mounted, setMounted] = useState(false);
-  // Helius devnet RPC — best compatibility with @solana/web3.js 1.98+
-  // Ankr caused StructError on getAccountInfo; official devnet RPC drops txs
+  // Helius / official devnet RPC — best compatibility with web3.js 1.98+
   const endpoint = useMemo(() => "https://api.devnet.solana.com", []);
-  const wallets = useMemo(() => [], []);
+
+  // Register the major Solana wallets so WalletMultiButton works
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter(),
+      new CoinbaseWalletAdapter(),
+    ],
+    []
+  );
 
   useEffect(() => {
     setMounted(true);

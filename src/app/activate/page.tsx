@@ -38,6 +38,7 @@ import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useState, useEffect } from "react";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
+import { useToasts, ToastContainer } from "@/components/Toast";
 import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
@@ -165,6 +166,7 @@ export default function ActivatePage() {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [log, setLog] = useState<string>("");
+  const { addToast, toasts } = useToasts();
 
   useEffect(() => {
     const savedKey = localStorage.getItem("txline_permanent_token");
@@ -442,6 +444,7 @@ export default function ActivatePage() {
       localStorage.setItem("txline_api_origin", jwtOrigin); // remember which network
       setApiKey(tokenStr);
       setStatus("API token activated. You're ready to play.");
+      addToast("API token activated successfully!", "success", 3000);
       appendLog("✓ API Token: " + tokenStr.slice(0, 24) + "…");
       appendLog("");
       appendLog("✓ Token saved in browser — dashboard will use it immediately.");
@@ -453,6 +456,7 @@ export default function ActivatePage() {
       console.error("TxLINE activation failed:", error);
       const msg = error?.message || String(error);
       setStatus("Activation failed — " + msg.slice(0, 140));
+      addToast("Activation failed: " + msg.slice(0, 60), "error", 4000);
       appendLog("✗ " + msg);
 
       if (msg.includes("ENOTFOUND") || msg.includes("Failed to connect")) {
@@ -547,6 +551,7 @@ export default function ActivatePage() {
           </div>
         </div>
       </div>
+      <ToastContainer toasts={toasts} />
     </main>
   );
 }

@@ -2,7 +2,7 @@
 // StreakLINE v3 – Neo-Football
 
 export const NETWORK = "devnet";
-export const API_ORIGIN = process.env.NEXT_PUBLIC_TXLINE_API_ORIGIN || "https://txline-dev.txodds.com";
+export const API_ORIGIN = process.env.TXLINE_API_ORIGIN || "https://txline-dev.txodds.com";
 export const API_BASE = `${API_ORIGIN}/api`;
 
 export type Fixture = {

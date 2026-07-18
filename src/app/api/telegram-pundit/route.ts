@@ -19,6 +19,13 @@ const HUMAN_PUNDITRIES = {
 
 export async function POST(req: Request) {
   try {
+    // Basic server-side auth: require a secret header to prevent open abuse
+    const authHeader = req.headers.get("x-streakline-secret") || "";
+    const expectedSecret = process.env.STREAKLINE_SECRET || process.env.TELEGRAM_SECRET || "";
+    if (expectedSecret && authHeader !== expectedSecret) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const { botToken, chatId, eventType, homeTeam, awayTeam, score, details, scorer, player, team, oldOdds, newOdds } = await req.json();
 
     if (!botToken || !chatId) {

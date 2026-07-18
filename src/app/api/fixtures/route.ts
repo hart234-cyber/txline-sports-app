@@ -9,10 +9,7 @@ const TXLINE_ORIGINS = [
 ];
 
 function getApiToken(req: Request): string {
-  const envToken =
-    process.env.TXLINE_API_TOKEN ||
-    process.env.NEXT_PUBLIC_TXLINE_API_TOKEN ||
-    "";
+  const envToken = process.env.TXLINE_API_TOKEN || "";
   if (envToken && !envToken.startsWith("demo_") && !envToken.includes("paste"))
     return envToken;
   const url = new URL(req.url);

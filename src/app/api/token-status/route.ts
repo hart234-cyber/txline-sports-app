@@ -11,10 +11,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   // 1. Check server-side env vars first
-  const envToken =
-    process.env.TXLINE_API_TOKEN ||
-    process.env.NEXT_PUBLIC_TXLINE_API_TOKEN ||
-    "";
+  const envToken = process.env.TXLINE_API_TOKEN || "";
 
   // 2. Also accept token from query param (passed from localStorage by dashboard)
   const url = new URL(req.url);
