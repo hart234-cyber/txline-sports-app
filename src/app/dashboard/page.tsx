@@ -1245,28 +1245,56 @@ export default function Dashboard() {
             <div className="text-[10px] font-black text-white">Live Chat</div>
           </div>
           <div className="flex-1 overflow-y-auto hide-sb px-3 py-2 space-y-2">
-            {[
-              { user: "kaito.sol", msg: "Spain looking strong this half 🔥", time: "2m", color: "#e8c84a" },
-              { user: "marcus_usa", msg: "Higher on corners, AI is correct", time: "3m", color: "#00d4ff" },
-              { user: "lara_arg", msg: "Streak 8 and counting 💪🏽", time: "5m", color: "#9b6dff" },
-              { user: "sofia_br", msg: "VAR saved us there, phew!", time: "7m", color: "#00e87a" },
-              { user: "moyo_ng", msg: "Argentina needs to attack more", time: "9m", color: "#ff3355" },
-              { user: "kaito.sol", msg: "TxLINE odds shifted HIGHER", time: "11m", color: "#e8c84a" },
-            ].map((c, i) => (
-              <div key={i} className="flex gap-2 text-[9px]">
-                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[7px] font-black text-white shrink-0"
-                     style={{ background: c.color }}>
-                  {c.user[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="font-bold text-[#c8d4e8]">{c.user}</span>
-                    <span className="text-[#3d4f6a]">{c.time} ago</span>
-                  </div>
-                  <p className="text-[#8899bb] leading-relaxed">{c.msg}</p>
-                </div>
+            {/* Real-time SSE connection banner */}
+            {mounted && (
+              <div className="flex items-center gap-2 text-[8px] font-mono mb-1 px-1">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sseIsLive ? "bg-[#00e87a] animate-pulse" : sseConnected ? "bg-[#e8c84a]" : "bg-[#3d4f6a]"}`} />
+                <span className="text-[#3d4f6a] uppercase tracking-wider">{sseIsLive ? "TxLINE Live Stream" : sseConnected ? "TxLINE Ready" : serverHasToken ? "TxLINE Demo" : "No Token — Demo Mode"}</span>
               </div>
-            ))}
+            )}
+            {/* Dynamic live events from SSE stream */}
+            {liveEvents.length > 0 ? (
+              liveEvents.slice(0, 6).map((e, i) => (
+                <div key={`${e.time}-${i}`} className="flex gap-2 text-[9px]">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[7px] font-black text-white shrink-0 shadow-sm"
+                       style={{ background: e.type === "goal" ? "#e8c84a" : e.type === "card" ? "#ff3355" : e.type === "var" ? "#00d4ff" : e.type === "corner" ? "#9b6dff" : "#3d4f6a" }}>
+                    {e.icon.slice(0, 1)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="font-bold text-[#c8d4e8]">TxLINE</span>
+                      <span className="text-[#3d4f6a]">{e.time}</span>
+                      {e.type === "goal" && <span className="text-[7px] font-black px-1 rounded bg-[#e8c84a]/10 text-[#e8c84a]">GOAL</span>}
+                      {e.type === "redCard" && <span className="text-[7px] font-black px-1 rounded bg-[#ff3355]/10 text-[#ff3355]">RED</span>}
+                    </div>
+                    <p className={`leading-relaxed ${e.type === "goal" ? "text-[#f0f4ff] font-medium" : "text-[#8899bb]"}`}>{e.text}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              [
+                { user: "kaito.sol", msg: "Spain looking strong this half 🔥", time: "2m", color: "#e8c84a" },
+                { user: "marcus_usa", msg: "Higher on corners, AI is correct", time: "3m", color: "#00d4ff" },
+                { user: "lara_arg", msg: "Streak 8 and counting 💪🏽", time: "5m", color: "#9b6dff" },
+                { user: "sofia_br", msg: "VAR saved us there, phew!", time: "7m", color: "#00e87a" },
+                { user: "moyo_ng", msg: "Argentina needs to attack more", time: "9m", color: "#ff3355" },
+                { user: "kaito.sol", msg: "TxLINE odds shifted HIGHER", time: "11m", color: "#e8c84a" },
+              ].map((c, i) => (
+                <div key={i} className="flex gap-2 text-[9px]">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[7px] font-black text-white shrink-0"
+                       style={{ background: c.color }}>
+                    {c.user[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="font-bold text-[#c8d4e8]">{c.user}</span>
+                      <span className="text-[#3d4f6a]">{c.time} ago</span>
+                    </div>
+                    <p className="text-[#8899bb] leading-relaxed">{c.msg}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
           <div className="p-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
             <div className="flex gap-2">
