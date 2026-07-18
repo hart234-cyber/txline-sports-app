@@ -16,6 +16,10 @@ export type Fixture = {
   competition?: string;
   homeScore?: number;
   awayScore?: number;
+  startTime?: number;
+  venue?: string;
+  group?: string;
+  round?: string;
 };
 
 export type StatKey = "corners" | "shots" | "shots_on_target" | "possession_home" | "fouls" | "attacks";
@@ -28,6 +32,26 @@ export const STATS: { key: StatKey; label: string; unit: string; short: string }
   { key: "fouls", label: "Fouls", unit: "", short: "FLS" },
   { key: "attacks", label: "Dangerous attacks", unit: "", short: "ATK" },
 ];
+
+export type LiveEvent = {
+  time: string;
+  text: string;
+  icon: string;
+  type: "goal" | "card" | "corner" | "var" | "save" | "fk" | "ht" | "kickoff" | "tick";
+};
+
+export type LiveStats = {
+  possessionHome?: number;
+  possessionAway?: number;
+  shotsHome?: number;
+  shotsAway?: number;
+  shotsOnTargetHome?: number;
+  shotsOnTargetAway?: number;
+  cornersHome?: number;
+  cornersAway?: number;
+  foulsHome?: number;
+  foulsAway?: number;
+};
 
 // Country codes – used for flag SVGs (via flagcdn.com) – no emoji, professional
 export function countryCode(name: string, fallback?: string): string {
