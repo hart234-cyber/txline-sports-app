@@ -445,11 +445,25 @@ export async function GET(req: Request) {
           });
 
         if (data.length > 0) {
+          // MERGE: Add demo WC knockout fixtures that TxLINE no longer has
+          // (finished matches drop off TxLINE's snapshot)
+          const demoFixtures = getDemoFixtures();
+          const liveIds = new Set(data.map((f) => f.fixtureId));
+          const pastWC = demoFixtures.filter(
+            (f) => isWC(f.competition) && f.status === "FT" && !liveIds.has(f.fixtureId)
+          );
+          const merged = [...data, ...pastWC].sort((a, b) => {
+            const aWC = isWC(a.competition) ? 0 : 1;
+            const bWC = isWC(b.competition) ? 0 : 1;
+            if (aWC !== bWC) return aWC - bWC;
+            return sortKey(a.status, a.startTime, Date.now()) - sortKey(b.status, b.startTime, Date.now());
+          });
+
           return NextResponse.json({
             success: true,
-            data,
+            data: merged,
             source: "txline_live",
-            count: data.length,
+            count: merged.length,
             origin,
           });
         }
