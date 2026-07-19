@@ -327,7 +327,7 @@ export default function Landing() {
             <div className="hidden md:flex items-center gap-8">
               {[
                 { href: "/dashboard", label: "Dashboard" },
-                { href: "/activate", label: "Activation" },
+                
               ].map(l => (
                 <Link key={l.href} href={l.href}
                       className="text-[10px] font-black tracking-[0.15em] text-[#8899bb] hover:text-[#e8c84a] uppercase transition-colors">
@@ -400,10 +400,7 @@ export default function Landing() {
                       <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
                     </svg>
                   </Link>
-                  <Link href="/activate"
-                        className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-[12px] font-black tracking-widest uppercase btn-ghost">
-                    Setup TxLINE Key
-                  </Link>
+                  {/* TxLINE key auto-configured */}
                 </div>
 
                 {/* Stats row */}
@@ -558,10 +555,7 @@ export default function Landing() {
                           className="text-[11px] font-black tracking-widest text-[#e8c84a] hover:text-white uppercase transition-colors">
                       Launch Dashboard →
                     </Link>
-                    <Link href="/activate"
-                          className="text-[11px] font-black tracking-widest text-[#8899bb] hover:text-[#e8c84a] uppercase transition-colors">
-                      Setup Guide →
-                    </Link>
+                    {/* Setup guide removed */}
                   </div>
                 </div>
               </div>
@@ -626,10 +620,7 @@ export default function Landing() {
                   <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
                 </svg>
               </Link>
-              <Link href="/activate"
-                    className="inline-flex items-center gap-3 px-10 py-5 rounded-2xl text-[13px] font-black tracking-widest uppercase btn-ghost">
-                Activate TxLINE
-              </Link>
+              {/* TxLINE auto-activated */}
             </div>
           </div>
         </section>
@@ -649,7 +640,7 @@ export default function Landing() {
             </div>
             <div className="flex flex-wrap gap-6 text-[9px] font-bold tracking-widest text-[#3d4f6a] uppercase">
               <Link href="/dashboard" className="hover:text-[#e8c84a] transition-colors">Dashboard</Link>
-              <Link href="/activate" className="hover:text-[#e8c84a] transition-colors">Activation</Link>
+              
               <span>TxLINE × Superteam Earn</span>
               <span>Solana Devnet · No Real Wagering</span>
             </div>

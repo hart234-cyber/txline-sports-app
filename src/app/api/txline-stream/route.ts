@@ -52,9 +52,9 @@ async function getGuestJwt(origin: string): Promise<string | null> {
 
 // ── Player name pools for realistic demo events ──────────────────────────────
 const PLAYER_POOLS: Record<string, string[]> = {
-  FRA: ["Mbappé", "Griezmann", "Dembélé", "Camavinga", "Tchouaméni", "Saliba", "Hernandez", "Upamecano", "Maignan", "Giroud", "Thuram"],
-  ENG: ["Kane", "Bellingham", "Saka", "Foden", "Rice", "Trippier", "Walker", "Stones", "Pickford", "Rashford", "Gordon"],
-  ESP: ["Yamal", "Pedri", "Morata", "Rodri", "Carvajal", "Alba", "Laporte", "Unai Simón", "Olmo", "Ferran Torres", "Gavi"],
+  FRA: ["Mbappé", "Dembélé", "Olise", "Barcola", "Rabiot", "Zaïre-Emery", "Cherki", "Doué", "Hernandez", "Konaté", "Maignan", "Gusto", "Lacroix"],
+  ENG: ["Saka", "Rice", "Bellingham", "Konsa", "Rashford", "Toney", "Eze", "Rogers", "Spence", "Guehi", "Quansah", "Henderson"],
+  ESP: ["Yamal", "Pedri", "Morata", "Rodri", "Carvajal", "Cucurella", "Laporte", "Unai Simón", "Olmo", "Ferran Torres", "Gavi", "Nico Williams"],
   ARG: ["Messi", "Di María", "Álvarez", "De Paul", "Mac Allister", "Molina", "Romero", "Otamendi", "Martínez", "Dybala", "Lautaro"],
   BRA: ["Vinicius Jr", "Rodrygo", "Neymar", "Casemiro", "Militão", "Marquinhos", "Alisson", "Raphinha", "Paquetá", "Endrick"],
   GER: ["Müller", "Gnabry", "Havertz", "Kimmich", "Goretzka", "Rüdiger", "Süle", "Neuer", "Wirtz", "Musiala"],
@@ -68,7 +68,7 @@ function getPlayer(teamCode: string): string {
 
 // ── Demo stream fixtures ──────────────────────────────────────────────────────
 const DEMO_FIXTURES = [
-  { fixtureId: 2626003, home: "France", homeCode: "FRA", away: "England", awayCode: "ENG" },
+  { fixtureId: 2626003, home: "England", homeCode: "ENG", away: "France", awayCode: "FRA" },
   { fixtureId: 2626004, home: "Spain", homeCode: "ESP", away: "Argentina", awayCode: "ARG" },
 ];
 
@@ -228,12 +228,21 @@ function makePollingStream(
   const encoder = new TextEncoder();
   let prevHomeScore = -1;
   let prevAwayScore = -1;
+  let prevSeq = -1;
   let seq = 0;
   let intervalId: ReturnType<typeof setInterval> | null = null;
+  // Track previous stats to detect changes
+  let prevCorners = { home: 0, away: 0 };
+  let prevYellows = { home: 0, away: 0 };
+  let prevReds = { home: 0, away: 0 };
+
+  const headers = {
+    Authorization: `Bearer ${jwt}`,
+    "X-Api-Token": apiToken,
+  };
 
   return new ReadableStream({
     start(controller) {
-      // Emit connected immediately so banner shows "TxLINE API Active"
       controller.enqueue(
         encoder.encode(
           `id: init\nevent: connected\ndata: ${JSON.stringify({ type: "connected", demo: false, live: true })}\n\n`
@@ -242,111 +251,156 @@ function makePollingStream(
 
       async function poll() {
         try {
-          const url = `${origin}/api/fixtures/snapshot`;
-          const r = await fetch(url, {
-            headers: {
-              Authorization: `Bearer ${jwt}`,
-              "X-Api-Token": apiToken,
-            },
-            cache: "no-store",
-            signal: AbortSignal.timeout(10000),
+          // 1. Get fixture info (for team names and GameState)
+          const fixR = await fetch(`${origin}/api/fixtures/snapshot`, {
+            headers, cache: "no-store", signal: AbortSignal.timeout(10000),
           });
-          if (!r.ok) return;
-
-          const rawFixtures = await r.json();
+          if (!fixR.ok) return;
+          const rawFixtures = await fixR.json();
           if (!Array.isArray(rawFixtures) || rawFixtures.length === 0) return;
 
-          // Find the target fixture
-          const now = Date.now();
-          let target = fixtureId
-            ? rawFixtures.find(
-                (f: Record<string, unknown>) =>
-                  String(f.FixtureId ?? f.fixtureId ?? f.id) === fixtureId
-              )
-            : null;
-
-          // Fallback: first live fixture
-          if (!target) {
-            target = rawFixtures.find((f: Record<string, unknown>) => {
-              const gs = typeof f.GameState === "number" ? f.GameState : null;
-              const rawSt = typeof f.StartTime === "number" ? f.StartTime : 0;
-              const startMs = rawSt > 1e12 ? rawSt : rawSt > 0 ? rawSt * 1000 : 0;
-              const msSince = now - startMs;
-              const isLive = msSince > 0 && msSince < 7200000;
-              return gs === 2 || gs === 3 || gs === 4 || gs === 5 || isLive;
-            }) || rawFixtures[0];
-          }
-
+          const target = fixtureId
+            ? rawFixtures.find((f: Record<string, unknown>) => String(f.FixtureId ?? f.fixtureId) === fixtureId)
+            : rawFixtures[0];
           if (!target) return;
 
-          const homeScore = (target.HomeScore as number) ?? (target.homeScore as number) ?? 0;
-          const awayScore = (target.AwayScore as number) ?? (target.awayScore as number) ?? 0;
+          const fid = target.FixtureId ?? target.fixtureId;
+          const home = (target.Participant1 as string) || "Home";
+          const away = (target.Participant2 as string) || "Away";
+          const homeCode = home.slice(0, 3).toUpperCase();
+          const awayCode = away.slice(0, 3).toUpperCase();
 
-          // Extract stats from TxLINE response
-          const rawStats = (target.Statistics ?? target.statistics ?? target.stats ?? {}) as Record<string, unknown>;
-          const stats = {
-            possessionHome: (rawStats.possession_home ?? rawStats.possessionHome ?? rawStats.Possession1 ?? null) as number | null,
-            possessionAway: (rawStats.possession_away ?? rawStats.possessionAway ?? rawStats.Possession2 ?? null) as number | null,
-            shotsHome: (rawStats.shots_home ?? rawStats.shotsHome ?? rawStats.Shots1 ?? rawStats.total_shots_home ?? null) as number | null,
-            shotsAway: (rawStats.shots_away ?? rawStats.shotsAway ?? rawStats.Shots2 ?? rawStats.total_shots_away ?? null) as number | null,
-            shotsOnTargetHome: (rawStats.shots_on_target_home ?? rawStats.shotsOnTargetHome ?? rawStats.ShotsOnTarget1 ?? null) as number | null,
-            shotsOnTargetAway: (rawStats.shots_on_target_away ?? rawStats.shotsOnTargetAway ?? rawStats.ShotsOnTarget2 ?? null) as number | null,
-            cornersHome: (rawStats.corners_home ?? rawStats.cornersHome ?? rawStats.Corners1 ?? null) as number | null,
-            cornersAway: (rawStats.corners_away ?? rawStats.cornersAway ?? rawStats.Corners2 ?? null) as number | null,
-            foulsHome: (rawStats.fouls_home ?? rawStats.foulsHome ?? rawStats.Fouls1 ?? null) as number | null,
-            foulsAway: (rawStats.fouls_away ?? rawStats.foulsAway ?? rawStats.Fouls2 ?? null) as number | null,
-          };
+          // 2. Get scores/snapshot for this fixture — this has Stats and Actions
+          const scoresR = await fetch(`${origin}/api/scores/snapshot/${fid}`, {
+            headers, cache: "no-store", signal: AbortSignal.timeout(10000),
+          });
 
-          // Extract match events from TxLINE response
-          const events = (target.Events ?? target.events ?? target.MatchEvents ?? []) as Array<Record<string, unknown>>;
+          let homeScore = 0, awayScore = 0;
+          let gameState = "scheduled";
+          let cornersHome = 0, cornersAway = 0;
+          let yellowsHome = 0, yellowsAway = 0;
+          let redsHome = 0, redsAway = 0;
+          let lastAction = "";
+          let actionData: Record<string, unknown> = {};
 
-          const isGoal =
-            prevHomeScore >= 0 &&
-            (homeScore > prevHomeScore || awayScore > prevAwayScore);
+          if (scoresR.ok) {
+            const scoresText = await scoresR.text();
+            // scores/snapshot can return JSON array or SSE format
+            let records: Array<Record<string, unknown>> = [];
+            try {
+              records = JSON.parse(scoresText);
+            } catch {
+              // Parse SSE format: data: {...}\nevent: scores
+              const lines = scoresText.split("\n");
+              for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                  try { records.push(JSON.parse(line.slice(6))); } catch {}
+                }
+              }
+            }
 
-          const eventType = isGoal ? "goal" : "tick";
+            // Process all score records — latest ones have the most up-to-date stats
+            for (const rec of records) {
+              const gs = rec.GameState as string;
+              if (gs) gameState = gs;
 
-          // Determine scorer from events if available
-          let scorer: string | null = null;
-          if (isGoal && events.length > 0) {
-            const goalEvent = [...events].reverse().find(
-              (ev) =>
-                String(ev.Type ?? ev.type ?? ev.EventType ?? "").toLowerCase().includes("goal") ||
-                (ev.TypeId ?? ev.typeId) === 1
-            );
-            if (goalEvent) {
-              scorer =
-                (goalEvent.PlayerName as string) ??
-                (goalEvent.player_name as string) ??
-                (goalEvent.Player as string) ??
-                null;
+              const stats = (rec.Stats || {}) as Record<string, number>;
+              // TxLINE stat keys: 1=P1 goals, 2=P2 goals, 3=P1 yellows, 4=P2 yellows,
+              // 5=P1 reds, 6=P2 reds, 7=P1 corners, 8=P2 corners
+              if (stats[1] !== undefined) homeScore = stats[1];
+              if (stats[2] !== undefined) awayScore = stats[2];
+              if (stats[3] !== undefined) yellowsHome = stats[3];
+              if (stats[4] !== undefined) yellowsAway = stats[4];
+              if (stats[5] !== undefined) redsHome = stats[5];
+              if (stats[6] !== undefined) redsAway = stats[6];
+              if (stats[7] !== undefined) cornersHome = stats[7];
+              if (stats[8] !== undefined) cornersAway = stats[8];
+
+              const action = rec.Action as string;
+              if (action) lastAction = action;
+              if (rec.Data && typeof rec.Data === "object") actionData = rec.Data as Record<string, unknown>;
             }
           }
 
-          // Compute match minute
-          const rawSt = typeof target.StartTime === "number" ? target.StartTime : 0;
-          const startMs = rawSt > 1e12 ? rawSt : rawSt > 0 ? rawSt * 1000 : 0;
-          const msSince = Date.now() - startMs;
-          const minute = startMs > 0 && msSince > 0 ? Math.min(90, Math.floor(msSince / 60000)) : 0;
+          // Detect events by comparing with previous state
+          const events: Array<{ type: string; detail: string }> = [];
+
+          if (prevHomeScore >= 0 && homeScore > prevHomeScore) {
+            events.push({ type: "goal", detail: `Goal! ${home} scores! ${homeScore}-${awayScore}` });
+          }
+          if (prevAwayScore >= 0 && awayScore > prevAwayScore) {
+            events.push({ type: "goal", detail: `Goal! ${away} scores! ${homeScore}-${awayScore}` });
+          }
+          if (cornersHome > prevCorners.home) {
+            events.push({ type: "corner", detail: `Corner kick — ${home}` });
+          }
+          if (cornersAway > prevCorners.away) {
+            events.push({ type: "corner", detail: `Corner kick — ${away}` });
+          }
+          if (yellowsHome > prevYellows.home) {
+            events.push({ type: "yellowCard", detail: `Yellow card — ${home}` });
+          }
+          if (yellowsAway > prevYellows.away) {
+            events.push({ type: "yellowCard", detail: `Yellow card — ${away}` });
+          }
+          if (redsHome > prevReds.home) {
+            events.push({ type: "redCard", detail: `Red card — ${home}` });
+          }
+          if (redsAway > prevReds.away) {
+            events.push({ type: "redCard", detail: `Red card — ${away}` });
+          }
 
           prevHomeScore = homeScore;
           prevAwayScore = awayScore;
+          prevCorners = { home: cornersHome, away: cornersAway };
+          prevYellows = { home: yellowsHome, away: yellowsAway };
+          prevReds = { home: redsHome, away: redsAway };
+
+          // Map TxLINE GameState to status
+          const gsMap: Record<string, string> = {
+            scheduled: "Scheduled", "1": "Scheduled",
+            "2": "1H", "3": "HT", "4": "2H", "5": "FT",
+            "6": "WET", "7": "ET1", "8": "HTET", "9": "ET2",
+            "10": "FET", "11": "WPE", "12": "PEN", "13": "FPE",
+          };
+          const status = gsMap[String(gameState)] || String(gameState);
+
+          // Compute match minute from StartTime
+          const rawSt = typeof target.StartTime === "number" ? target.StartTime : 0;
+          const startMs = rawSt > 1e12 ? rawSt : rawSt > 0 ? rawSt * 1000 : 0;
+          const msSince = Date.now() - startMs;
+          const minute = startMs > 0 && msSince > 0 ? Math.min(120, Math.floor(msSince / 60000)) : 0;
+
           seq++;
 
+          // Emit main tick with all stats
+          const eventType = events.some(e => e.type === "goal") ? "goal" : "tick";
           const payload = JSON.stringify({
             type: eventType,
             demo: false,
             seq,
-            fixtureId: target.FixtureId ?? target.fixtureId ?? target.id,
-            home: target.Participant1 ?? target.home ?? "Home",
-            homeCode: ((target.Participant1 as string) ?? "HOM").slice(0, 3).toUpperCase(),
-            away: target.Participant2 ?? target.away ?? "Away",
-            awayCode: ((target.Participant2 as string) ?? "AWY").slice(0, 3).toUpperCase(),
+            fixtureId: fid,
+            home,
+            homeCode,
+            away,
+            awayCode,
             homeScore,
             awayScore,
             minute,
-            scorer,
-            stats,
+            status,
+            scorer: null, // TxLINE doesn't provide scorer names
+            stats: {
+              cornersHome, cornersAway,
+              yellowsHome, yellowsAway,
+              redsHome, redsAway,
+              // TxLINE doesn't provide shots/possession in basic Stats — use null
+              possessionHome: null, possessionAway: null,
+              shotsHome: null, shotsAway: null,
+              shotsOnTargetHome: null, shotsOnTargetAway: null,
+              foulsHome: null, foulsAway: null,
+            },
+            events,
+            lastAction,
             ts: Date.now(),
           });
 

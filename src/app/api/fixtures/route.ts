@@ -75,30 +75,26 @@ function getDemoFixtures() {
 
   const schedule: RawFixture[] = [
     // ── FIFA WORLD CUP 2026 ──────────────────────────────────────────────────────
+    // 3rd Place Match (FT)
     {
       fixtureId: 2626003,
       home: "England",
       homeCode: "ENG",
       away: "France",
       awayCode: "FRA",
-      // FT: ended ~3 hours ago — England 6-4 France (3rd Place)
-      startTime: now - 3 * 60 * 60 * 1000,
+      startTime: new Date("2026-07-18T23:00:00Z").getTime(),
       venue: "Hard Rock Stadium, Miami",
       round: "3rd Place",
       competition: "FIFA World Cup 2026",
     },
+    // Final
     {
       fixtureId: 2626004,
       home: "Spain",
       homeCode: "ESP",
       away: "Argentina",
       awayCode: "ARG",
-      // Today's final — 19:00 UTC (always today, never pushed to tomorrow)
-      startTime: (() => {
-        const d = new Date();
-        d.setUTCHours(19, 0, 0, 0);
-        return d.getTime();
-      })(),
+      startTime: new Date("2026-07-19T19:00:00Z").getTime(),
       venue: "MetLife Stadium, New Jersey",
       round: "Final",
       competition: "FIFA World Cup 2026",
@@ -110,9 +106,8 @@ function getDemoFixtures() {
       homeCode: "ESP",
       away: "France",
       awayCode: "FRA",
-      // Recent FT (2 hours ago, within 3h window)
-      startTime: now - 2 * 60 * 60 * 1000,
-      venue: "MetLife Stadium, New Jersey",
+      startTime: new Date("2026-07-14T20:00:00Z").getTime(),
+      venue: "AT&T Stadium, Dallas",
       round: "Semi-Final",
       competition: "FIFA World Cup 2026",
     },
@@ -122,54 +117,53 @@ function getDemoFixtures() {
       homeCode: "ARG",
       away: "England",
       awayCode: "ENG",
-      // FT (4 hours ago, kept visible for context but filtered by 3h rule)
-      startTime: now - 4 * 60 * 60 * 1000,
-      venue: "AT&T Stadium, Dallas",
+      startTime: new Date("2026-07-15T22:00:00Z").getTime(),
+      venue: "Mercedes-Benz Stadium, Atlanta",
       round: "Semi-Final",
       competition: "FIFA World Cup 2026",
     },
     // Quarter-finals (FT)
     {
       fixtureId: 2625001,
-      home: "Spain",
-      homeCode: "ESP",
-      away: "Brazil",
-      awayCode: "BRA",
-      startTime: new Date("2026-07-04T23:00:00Z").getTime(),
-      venue: "SoFi Stadium, Los Angeles",
+      home: "France",
+      homeCode: "FRA",
+      away: "Morocco",
+      awayCode: "MAR",
+      startTime: new Date("2026-07-09T20:00:00Z").getTime(),
+      venue: "Gillette Stadium, Boston",
       round: "Quarter-Final",
       competition: "FIFA World Cup 2026",
     },
     {
       fixtureId: 2625002,
-      home: "France",
-      homeCode: "FRA",
-      away: "Germany",
-      awayCode: "GER",
-      startTime: new Date("2026-07-05T02:00:00Z").getTime(),
-      venue: "Arrowhead Stadium, Kansas City",
+      home: "Spain",
+      homeCode: "ESP",
+      away: "Belgium",
+      awayCode: "BEL",
+      startTime: new Date("2026-07-10T19:00:00Z").getTime(),
+      venue: "SoFi Stadium, Los Angeles",
       round: "Quarter-Final",
       competition: "FIFA World Cup 2026",
     },
     {
       fixtureId: 2625003,
-      home: "Argentina",
-      homeCode: "ARG",
-      away: "Netherlands",
-      awayCode: "NED",
-      startTime: new Date("2026-07-05T23:00:00Z").getTime(),
-      venue: "Rose Bowl, Los Angeles",
+      home: "England",
+      homeCode: "ENG",
+      away: "Norway",
+      awayCode: "NOR",
+      startTime: new Date("2026-07-11T21:00:00Z").getTime(),
+      venue: "Hard Rock Stadium, Miami",
       round: "Quarter-Final",
       competition: "FIFA World Cup 2026",
     },
     {
       fixtureId: 2625004,
-      home: "England",
-      homeCode: "ENG",
-      away: "Portugal",
-      awayCode: "POR",
-      startTime: new Date("2026-07-06T02:00:00Z").getTime(),
-      venue: "Gillette Stadium, Boston",
+      home: "Argentina",
+      homeCode: "ARG",
+      away: "Switzerland",
+      awayCode: "SUI",
+      startTime: new Date("2026-07-12T01:00:00Z").getTime(),
+      venue: "Arrowhead Stadium, Kansas City",
       round: "Quarter-Final",
       competition: "FIFA World Cup 2026",
     },
@@ -271,14 +265,16 @@ function getDemoFixtures() {
     },
   ];
 
-  // Exclude matches that finished more than 4 hours ago (keep recent FT + upcoming)
-  const threeHoursAgo = now - 4 * 60 * 60 * 1000;
+  // Keep all WC matches visible (FT or upcoming), filter non-WC if >8h old
+  const eightHoursAgo = now - 8 * 60 * 60 * 1000;
 
   return schedule
     .filter((f) => {
+      // Always keep World Cup matches visible
+      if (isWC(f.competition)) return true;
       const msSince = now - f.startTime;
-      const isPast = msSince >= 7200000; // 2h = match over
-      if (isPast && f.startTime < threeHoursAgo) return false; // too old
+      const isPast = msSince >= 7200000;
+      if (isPast && f.startTime < eightHoursAgo) return false;
       return true;
     })
     .map((f) => {
@@ -287,8 +283,10 @@ function getDemoFixtures() {
       const isPast = msSince >= 7200000;
       const minute = isLive ? Math.min(90, Math.floor(msSince / 60000)) : 0;
 
+      const knownFT = new Set([2626003, 2626001, 2626002, 2625001, 2625002, 2625003, 2625004]);
       let status = "Scheduled";
-      if (isPast) status = "FT";
+      if (knownFT.has(f.fixtureId)) status = "FT";
+      else if (isPast) status = "FT";
       else if (isLive && minute <= 45) status = "1H";
       else if (isLive && minute > 45 && minute <= 50) status = "HT";
       else if (isLive && minute > 50) status = "2H";
@@ -301,8 +299,24 @@ function getDemoFixtures() {
         awayCode: f.awayCode,
         status,
         minute: isLive ? minute : 0,
-        homeScore: isPast && f.fixtureId === 2626003 ? 6 : isLive && f.fixtureId === 2626003 ? Math.min(6, Math.floor(msSince / 1800000) + 1) : 0,
-        awayScore: isPast && f.fixtureId === 2626003 ? 4 : isLive && f.fixtureId === 2626003 ? Math.min(4, Math.floor(msSince / 2400000)) : 0,
+        homeScore: ({
+          2626003: 6, // England 6-4 France (3rd Place)
+          2626001: 2, // Spain 2-0 France (SF)
+          2626002: 2, // Argentina 2-1 England (SF)
+          2625001: 2, // France 2-0 Morocco (QF)
+          2625002: 2, // Spain 2-1 Belgium (QF) — Sporting News says 1-0, Olympics.com says 2-1
+          2625003: 2, // England 2-1 Norway (QF, AET)
+          2625004: 3, // Argentina 3-1 Switzerland (QF, AET)
+        } as Record<number, number>)[f.fixtureId] ?? 0,
+        awayScore: ({
+          2626003: 4,
+          2626001: 0,
+          2626002: 1,
+          2625001: 0,
+          2625002: 1,
+          2625003: 1,
+          2625004: 1,
+        } as Record<number, number>)[f.fixtureId] ?? 0,
         competition: f.competition,
         startTime: f.startTime,
         venue: f.venue,

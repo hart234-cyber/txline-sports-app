@@ -78,7 +78,7 @@ export function countryCode(name: string, fallback?: string): string {
     "SAUDI ARABIA": "SA", IRAN: "IR", IRAQ: "IQ", UAE: "AE",
     QATAR: "QA", KUWAIT: "KW", BAHRAIN: "BH", JORDAN: "JO",
     // 3-letter codes
-    ARG: "AR", FRA: "FR", BRA: "BR", GER: "DE", ESP: "ES", ENG: "GB-ENG",
+    ARG: "AR", FRA: "FR", BRA: "BR", GER: "DE", ESP: "ES", SPA: "ES", ENG: "GB-ENG",
     POR: "PT", NED: "NL", BEL: "BE", CRO: "HR", MAR: "MA",
     JPN: "JP", MEX: "MX", SEN: "SN", NGA: "NG", URU: "UY", COL: "CO",
     VIE: "VN", MYA: "MM", NZL: "NZ", IND: "IN", AUS: "AU",
@@ -92,7 +92,18 @@ export function countryCode(name: string, fallback?: string): string {
     MIA: "US", LAG: "US", NYC: "US", ATL: "US", SEA: "US",
     MIL: "IT", JUV: "IT", INT: "IT", NAP: "IT",
   };
-  return map[n] || (n.length === 2 ? n : "UN");
+  // Try exact match first
+  if (map[n]) return map[n];
+  // Try first 3 chars of longer names
+  if (n.length > 3 && map[n.slice(0, 3)]) return map[n.slice(0, 3)];
+  // If it's already a 2-letter ISO code, use it directly
+  if (n.length === 2) return n;
+  // If 3-letter code not found, try common patterns
+  if (n.length === 3) {
+    // Many 3-letter codes match their 2-letter ISO with first 2 chars
+    return n.slice(0, 2);
+  }
+  return "UN";
 }
 
 // flagcdn – crisp SVG flags, professional, no emoji rendering issues

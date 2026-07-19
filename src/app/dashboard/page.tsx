@@ -478,25 +478,86 @@ function MatchSummary({ fixture, events }: { fixture: Fixture; events: LiveEvent
   }> = {
     2626003: {
       goals: [
-        { time: "12'", scorer: "Kane", team: "England", score: "1–0" },
-        { time: "23'", scorer: "Mbappé", team: "France", score: "1–1" },
-        { time: "34'", scorer: "Kane", team: "England", score: "2–1" },
-        { time: "45'", scorer: "Bellingham", team: "England", score: "3–1" },
-        { time: "56'", scorer: "Mbappé", team: "France", score: "3–2" },
-        { time: "67'", scorer: "Kane", team: "England", score: "4–2" },
-        { time: "71'", scorer: "Griezmann", team: "France", score: "4–3" },
-        { time: "78'", scorer: "Saka", team: "England", score: "5–3" },
-        { time: "82'", scorer: "Dembélé", team: "France", score: "5–4" },
-        { time: "89'", scorer: "Kane", team: "England", score: "6–4" },
+        { time: "3'", scorer: "Rice", team: "England", score: "0–1" },
+        { time: "18'", scorer: "Konsa", team: "England", score: "0–2" },
+        { time: "37'", scorer: "Saka", team: "England", score: "0–3" },
+        { time: "45+1'", scorer: "Saka", team: "England", score: "0–4" },
+        { time: "48'", scorer: "Mbappé", team: "France", score: "1–4" },
+        { time: "54'", scorer: "Barcola", team: "France", score: "2–4" },
+        { time: "66'", scorer: "Mbappé", team: "France", score: "3–4" },
+        { time: "87'", scorer: "Saka (pen)", team: "England", score: "3–5" },
+        { time: "90+6'", scorer: "Dembélé", team: "France", score: "4–5" },
+        { time: "90+8'", scorer: "Bellingham", team: "England", score: "4–6" },
       ],
       cards: [
-        { time: "44'", player: "Tchouaméni", team: "France", type: "🟨 Yellow" },
-        { time: "88'", player: "Upamecano", team: "France", type: "🟨 Yellow" },
+        { time: "85'", player: "Gusto", team: "France", type: "🟨 Yellow (penalty conceded)" },
       ],
       subs: [
-        { time: "60'", on: "Rashford", off: "Gordon", team: "England" },
-        { time: "65'", on: "Giroud", off: "Thuram", team: "France" },
+        { time: "46'", on: "Bellingham", off: "Eze", team: "England" },
+        { time: "46'", on: "Kane", off: "Toney", team: "England" },
+        { time: "70'", on: "Barcola", off: "Doué", team: "France" },
+        { time: "90'", on: "Koundé", off: "Gusto", team: "France" },
+        { time: "90'", on: "Chalobah", off: "Guehi", team: "England" },
       ],
+    },
+    // SF: Spain 2-0 France (Oyarzabal pen 22', Porro 58')
+    2626001: {
+      goals: [
+        { time: "22'", scorer: "Oyarzabal (pen)", team: "Spain", score: "1–0" },
+        { time: "58'", scorer: "Porro", team: "Spain", score: "2–0" },
+      ],
+      cards: [],
+      subs: [],
+    },
+    // SF: Argentina 2-1 England (Gordon 55', Fernández 85', Lautaro 90+2')
+    2626002: {
+      goals: [
+        { time: "55'", scorer: "Gordon", team: "England", score: "0–1" },
+        { time: "85'", scorer: "Fernández", team: "Argentina", score: "1–1" },
+        { time: "90+2'", scorer: "Lautaro Martínez", team: "Argentina", score: "2–1" },
+      ],
+      cards: [],
+      subs: [],
+    },
+    // QF: France 2-0 Morocco (Mbappé 60', Dembélé 66')
+    2625001: {
+      goals: [
+        { time: "60'", scorer: "Mbappé", team: "France", score: "1–0" },
+        { time: "66'", scorer: "Dembélé", team: "France", score: "2–0" },
+      ],
+      cards: [],
+      subs: [],
+    },
+    // QF: Spain 2-1 Belgium (Fabián Ruiz 30', De Ketelaere 41', Merino 88')
+    2625002: {
+      goals: [
+        { time: "30'", scorer: "Fabián Ruiz", team: "Spain", score: "1–0" },
+        { time: "41'", scorer: "De Ketelaere", team: "Belgium", score: "1–1" },
+        { time: "88'", scorer: "Merino", team: "Spain", score: "2–1" },
+      ],
+      cards: [],
+      subs: [],
+    },
+    // QF: England 2-1 Norway AET (Schjelderup 36', Bellingham 45+2', Bellingham 93')
+    2625003: {
+      goals: [
+        { time: "36'", scorer: "Schjelderup", team: "Norway", score: "0–1" },
+        { time: "45+2'", scorer: "Bellingham", team: "England", score: "1–1" },
+        { time: "93'", scorer: "Bellingham", team: "England", score: "2–1" },
+      ],
+      cards: [],
+      subs: [],
+    },
+    // QF: Argentina 3-1 Switzerland AET (Mac Allister 10', Ndoye 67', Álvarez 112', Lautaro 120+1')
+    2625004: {
+      goals: [
+        { time: "10'", scorer: "Mac Allister", team: "Argentina", score: "1–0" },
+        { time: "67'", scorer: "Ndoye", team: "Switzerland", score: "1–1" },
+        { time: "112'", scorer: "Álvarez", team: "Argentina", score: "2–1" },
+        { time: "120+1'", scorer: "Lautaro Martínez", team: "Argentina", score: "3–1" },
+      ],
+      cards: [],
+      subs: [],
     },
   };
 
@@ -1186,15 +1247,7 @@ export default function Dashboard() {
             </svg>
           </button>
         ))}
-        <div className="mt-auto">
-          <Link href="/activate" title="Setup"
-            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
-            style={{ color: "#3d4f6a" }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-            </svg>
-          </Link>
-        </div>
+        <div className="mt-auto" />
       </div>
 
       {/* ═══ LEFT PANEL — Fixture List ═══ */}
@@ -1306,35 +1359,7 @@ export default function Dashboard() {
                     (confirmed by SSE connected event) to determine active state.
                     This means the banner disappears immediately on page load when
                     TXLINE_API_TOKEN is set in Vercel env vars — no waiting for SSE. */}
-                {mounted && (() => {
-                  const isActive = serverHasToken || sseIsLive;
-                  return (
-                    <div className="rounded-xl px-4 py-3 flex items-center justify-between"
-                         style={isActive
-                           ? { background: "rgba(0,232,122,0.05)", border: "1px solid rgba(0,232,122,0.15)" }
-                           : { background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.12)" }}>
-                      <div>
-                        <div className="text-[11px] font-black text-white">
-                          {isActive ? "🟢 TxLINE API Active" : "🔵 Demo Mode — Real WC2026 Schedule"}
-                        </div>
-                        <div className="text-[9px] text-[#8899bb] mt-0.5">
-                          {isActive
-                            ? sseIsLive
-                              ? "Streaming live scores from TxLINE API"
-                              : "TxLINE API token configured — live data ready when matches go live"
-                            : "Showing real FIFA WC2026 fixtures. Visit /activate to connect live TxLINE feeds."}
-                        </div>
-                      </div>
-                      {!isActive && (
-                        <Link href="/activate"
-                          className="text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors"
-                          style={{ color: "#00d4ff", border: "1px solid rgba(0,212,255,0.2)" }}>
-                          Activate →
-                        </Link>
-                      )}
-                    </div>
-                  );
-                })()}
+                {/* API status banner removed — token auto-loaded */}
 
                 {fixture ? (
                   <LiveMatchHero
