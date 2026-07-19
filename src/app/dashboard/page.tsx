@@ -62,7 +62,8 @@ function LiveMatchHero({ fixture, streak, best, onGuess, pundit, result, guess, 
   onSpeak: () => void;
 }) {
   const live = isMatchLive(fixture);
-
+  const ft = fixture.status === "FT";
+  const hasScore = live || ft;
   const statsBar = live ? [
     { l: "Poss", h: liveStats?.possessionHome != null ? `${liveStats.possessionHome}%` : "—", a: liveStats?.possessionAway != null ? `${liveStats.possessionAway}%` : "—" },
     { l: "Shots", h: liveStats?.shotsHome != null ? String(liveStats.shotsHome) : "—", a: liveStats?.shotsAway != null ? String(liveStats.shotsAway) : "—" },
@@ -97,9 +98,9 @@ function LiveMatchHero({ fixture, streak, best, onGuess, pundit, result, guess, 
               LIVE {fixture.minute ? `${fixture.minute}'` : ""}
             </span>
           ) : (
-            <span className="text-[9px] font-bold tracking-widest text-[#8899bb] uppercase px-3 py-1.5 rounded-full"
-                  style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
-              {fixture.status || "Scheduled"}
+            <span className={`text-[9px] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full ${ft ? "text-[#00e87a]" : "text-[#8899bb]"}`}
+                  style={{ border: ft ? "1px solid rgba(0,232,122,0.2)" : "1px solid rgba(255,255,255,0.06)", background: ft ? "rgba(0,232,122,0.06)" : "transparent" }}>
+              {ft ? "FT" : fixture.status || "Scheduled"}
             </span>
           )}
           <span className="text-[9px] text-[#8899bb] font-medium">{fixture.competition}</span>
@@ -130,11 +131,15 @@ function LiveMatchHero({ fixture, streak, best, onGuess, pundit, result, guess, 
 
         {/* Score / VS */}
         <div className="flex flex-col items-center gap-3 flex-1 max-w-[200px] mx-4">
-          {live ? (
-            <div className="flex items-center gap-3">
-              <span className="text-[60px] font-black text-white tabular-nums leading-none">{fixture.homeScore ?? 0}</span>
-              <span className="text-[24px] font-light leading-none" style={{ color: "#e8c84a" }}>:</span>
-              <span className="text-[60px] font-black text-white tabular-nums leading-none">{fixture.awayScore ?? 0}</span>
+          {hasScore ? (
+            <div className="text-center">
+              <div className="flex items-center gap-3">
+                <span className="text-[60px] font-black text-white tabular-nums leading-none">{fixture.homeScore ?? 0}</span>
+                <span className="text-[24px] font-light leading-none" style={{ color: "#e8c84a" }}>:</span>
+                <span className="text-[60px] font-black text-white tabular-nums leading-none">{fixture.awayScore ?? 0}</span>
+              </div>
+              {ft && <div className="text-[10px] font-black tracking-widest uppercase mt-1" style={{ color: "#00e87a" }}>Full Time</div>}
+              {live && <div className="text-[10px] font-black tracking-widest uppercase mt-1" style={{ color: "#e8c84a" }}>{fixture.status} {(fixture.minute ?? 0) > 0 ? `${fixture.minute}'` : ""}</div>}
             </div>
           ) : (
             <div className="text-center">
