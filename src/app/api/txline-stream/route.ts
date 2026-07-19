@@ -228,10 +228,9 @@ function makePollingStream(
   const encoder = new TextEncoder();
   let prevHomeScore = -1;
   let prevAwayScore = -1;
-  let prevSeq = -1;
+  let prevSeqMax = -1;
   let seq = 0;
   let intervalId: ReturnType<typeof setInterval> | null = null;
-  // Track previous stats to detect changes
   let prevCorners = { home: 0, away: 0 };
   let prevYellows = { home: 0, away: 0 };
   let prevReds = { home: 0, away: 0 };
@@ -251,7 +250,7 @@ function makePollingStream(
 
       async function poll() {
         try {
-          // 1. Get fixture info (for team names and GameState)
+          // 1. Get fixture info
           const fixR = await fetch(`${origin}/api/fixtures/snapshot`, {
             headers, cache: "no-store", signal: AbortSignal.timeout(10000),
           });
@@ -270,43 +269,49 @@ function makePollingStream(
           const homeCode = home.slice(0, 3).toUpperCase();
           const awayCode = away.slice(0, 3).toUpperCase();
 
-          // 2. Get scores/snapshot for this fixture — this has Stats and Actions
+          // 2. Get scores/snapshot — has Stats, Actions, Clock
           const scoresR = await fetch(`${origin}/api/scores/snapshot/${fid}`, {
             headers, cache: "no-store", signal: AbortSignal.timeout(10000),
           });
 
           let homeScore = 0, awayScore = 0;
-          let gameState = "scheduled";
+          let minute = 0;
           let cornersHome = 0, cornersAway = 0;
           let yellowsHome = 0, yellowsAway = 0;
           let redsHome = 0, redsAway = 0;
-          let lastAction = "";
-          let actionData: Record<string, unknown> = {};
+          let matchStatus = "Scheduled";
+          const newEvents: Array<{ type: string; detail: string; minute: number; participant: number }> = [];
 
           if (scoresR.ok) {
             const scoresText = await scoresR.text();
-            // scores/snapshot can return JSON array or SSE format
             let records: Array<Record<string, unknown>> = [];
-            try {
-              records = JSON.parse(scoresText);
-            } catch {
-              // Parse SSE format: data: {...}\nevent: scores
-              const lines = scoresText.split("\n");
-              for (const line of lines) {
+            try { records = JSON.parse(scoresText); } catch {
+              for (const line of scoresText.split("\n")) {
                 if (line.startsWith("data: ")) {
                   try { records.push(JSON.parse(line.slice(6))); } catch {}
                 }
               }
             }
 
-            // Process all score records — latest ones have the most up-to-date stats
-            for (const rec of records) {
-              const gs = rec.GameState as string;
-              if (gs) gameState = gs;
+            // Track the highest seq we've seen
+            let maxSeq = prevSeqMax;
 
+            for (const rec of records) {
+              const recSeq = (rec.Seq as number) ?? -1;
               const stats = (rec.Stats || {}) as Record<string, number>;
-              // TxLINE stat keys: 1=P1 goals, 2=P2 goals, 3=P1 yellows, 4=P2 yellows,
-              // 5=P1 reds, 6=P2 reds, 7=P1 corners, 8=P2 corners
+              const action = (rec.Action as string) || "";
+              const clock = (rec.Clock || {}) as Record<string, unknown>;
+              const clockSecs = (clock.Seconds as number) || 0;
+              const recMinute = Math.floor(clockSecs / 60);
+              const participant = (rec.Participant as number) || 0;
+              const data = (rec.Data || {}) as Record<string, unknown>;
+              const confirmed = rec.Confirmed as boolean;
+              const statusData = data.StatusId as number;
+
+              // Update match minute from Clock (more accurate than StartTime calc)
+              if (clockSecs > 0 && recMinute > minute) minute = recMinute;
+
+              // Update stats from latest record that has them
               if (stats[1] !== undefined) homeScore = stats[1];
               if (stats[2] !== undefined) awayScore = stats[2];
               if (stats[3] !== undefined) yellowsHome = stats[3];
@@ -316,38 +321,72 @@ function makePollingStream(
               if (stats[7] !== undefined) cornersHome = stats[7];
               if (stats[8] !== undefined) cornersAway = stats[8];
 
-              const action = rec.Action as string;
-              if (action) lastAction = action;
-              if (rec.Data && typeof rec.Data === "object") actionData = rec.Data as Record<string, unknown>;
+              // Detect match status from StatusId
+              if (statusData === 2) matchStatus = "1H";
+              else if (statusData === 3) matchStatus = "HT";
+              else if (statusData === 4) matchStatus = "2H";
+              else if (statusData === 5) matchStatus = "FT";
+
+              // Only emit NEW events (seq > prevSeqMax) and confirmed ones
+              if (recSeq > prevSeqMax && confirmed) {
+                const teamName = participant === 1 ? home : participant === 2 ? away : "";
+                
+                if (action === "goal") {
+                  newEvents.push({ type: "goal", detail: `Goal! ${teamName} scores!`, minute: recMinute, participant });
+                } else if (action === "shot") {
+                  const outcome = (data.Outcome as string) || "";
+                  newEvents.push({ type: "shot", detail: `Shot ${outcome} — ${teamName}`, minute: recMinute, participant });
+                } else if (action === "corner") {
+                  newEvents.push({ type: "corner", detail: `Corner kick — ${teamName}`, minute: recMinute, participant });
+                } else if (action === "free_kick") {
+                  const fkType = (data.FreeKickType as string) || "";
+                  if (fkType === "Offside") {
+                    newEvents.push({ type: "offside", detail: `Offside — ${teamName}`, minute: recMinute, participant });
+                  } else {
+                    newEvents.push({ type: "foul", detail: `Free kick (${fkType}) — ${teamName}`, minute: recMinute, participant });
+                  }
+                } else if (action === "yellow_card") {
+                  newEvents.push({ type: "yellowCard", detail: `Yellow card — ${teamName}`, minute: recMinute, participant });
+                } else if (action === "red_card") {
+                  newEvents.push({ type: "redCard", detail: `Red card — ${teamName}`, minute: recMinute, participant });
+                } else if (action === "substitution") {
+                  newEvents.push({ type: "substitution", detail: `Substitution — ${teamName}`, minute: recMinute, participant });
+                } else if (action === "penalty") {
+                  newEvents.push({ type: "penalty", detail: `Penalty — ${teamName}`, minute: recMinute, participant });
+                } else if (action === "var") {
+                  const varType = (data.Type as string) || "";
+                  newEvents.push({ type: "var", detail: `VAR check (${varType}) — ${teamName}`, minute: recMinute, participant });
+                } else if (action === "throw_in") {
+                  newEvents.push({ type: "throw_in", detail: `Throw-in — ${teamName}`, minute: recMinute, participant });
+                } else if (action === "kickoff") {
+                  newEvents.push({ type: "kickoff", detail: `Kick off!`, minute: 0, participant: 0 });
+                }
+              }
+
+              if (recSeq > maxSeq) maxSeq = recSeq;
+            }
+
+            prevSeqMax = maxSeq;
+          }
+
+          // Fallback minute from StartTime if Clock didn't give us one
+          if (minute === 0) {
+            const rawSt = typeof target.StartTime === "number" ? target.StartTime : 0;
+            const startMs = rawSt > 1e12 ? rawSt : rawSt > 0 ? rawSt * 1000 : 0;
+            const msSince = Date.now() - startMs;
+            if (startMs > 0 && msSince > 0) minute = Math.min(120, Math.floor(msSince / 60000));
+          }
+
+          // Detect goal from score change
+          if (prevHomeScore >= 0 && homeScore > prevHomeScore) {
+            if (!newEvents.some(e => e.type === "goal")) {
+              newEvents.push({ type: "goal", detail: `Goal! ${home} scores! ${homeScore}-${awayScore}`, minute, participant: 1 });
             }
           }
-
-          // Detect events by comparing with previous state
-          const events: Array<{ type: string; detail: string }> = [];
-
-          if (prevHomeScore >= 0 && homeScore > prevHomeScore) {
-            events.push({ type: "goal", detail: `Goal! ${home} scores! ${homeScore}-${awayScore}` });
-          }
           if (prevAwayScore >= 0 && awayScore > prevAwayScore) {
-            events.push({ type: "goal", detail: `Goal! ${away} scores! ${homeScore}-${awayScore}` });
-          }
-          if (cornersHome > prevCorners.home) {
-            events.push({ type: "corner", detail: `Corner kick — ${home}` });
-          }
-          if (cornersAway > prevCorners.away) {
-            events.push({ type: "corner", detail: `Corner kick — ${away}` });
-          }
-          if (yellowsHome > prevYellows.home) {
-            events.push({ type: "yellowCard", detail: `Yellow card — ${home}` });
-          }
-          if (yellowsAway > prevYellows.away) {
-            events.push({ type: "yellowCard", detail: `Yellow card — ${away}` });
-          }
-          if (redsHome > prevReds.home) {
-            events.push({ type: "redCard", detail: `Red card — ${home}` });
-          }
-          if (redsAway > prevReds.away) {
-            events.push({ type: "redCard", detail: `Red card — ${away}` });
+            if (!newEvents.some(e => e.type === "goal")) {
+              newEvents.push({ type: "goal", detail: `Goal! ${away} scores! ${homeScore}-${awayScore}`, minute, participant: 2 });
+            }
           }
 
           prevHomeScore = homeScore;
@@ -356,51 +395,29 @@ function makePollingStream(
           prevYellows = { home: yellowsHome, away: yellowsAway };
           prevReds = { home: redsHome, away: redsAway };
 
-          // Map TxLINE GameState to status
-          const gsMap: Record<string, string> = {
-            scheduled: "Scheduled", "1": "Scheduled",
-            "2": "1H", "3": "HT", "4": "2H", "5": "FT",
-            "6": "WET", "7": "ET1", "8": "HTET", "9": "ET2",
-            "10": "FET", "11": "WPE", "12": "PEN", "13": "FPE",
-          };
-          const status = gsMap[String(gameState)] || String(gameState);
-
-          // Compute match minute from StartTime
-          const rawSt = typeof target.StartTime === "number" ? target.StartTime : 0;
-          const startMs = rawSt > 1e12 ? rawSt : rawSt > 0 ? rawSt * 1000 : 0;
-          const msSince = Date.now() - startMs;
-          const minute = startMs > 0 && msSince > 0 ? Math.min(120, Math.floor(msSince / 60000)) : 0;
-
           seq++;
 
-          // Emit main tick with all stats
-          const eventType = events.some(e => e.type === "goal") ? "goal" : "tick";
+          const eventType = newEvents.some(e => e.type === "goal") ? "goal" : "tick";
           const payload = JSON.stringify({
             type: eventType,
             demo: false,
             seq,
             fixtureId: fid,
-            home,
-            homeCode,
-            away,
-            awayCode,
-            homeScore,
-            awayScore,
+            home, homeCode, away, awayCode,
+            homeScore, awayScore,
             minute,
-            status,
-            scorer: null, // TxLINE doesn't provide scorer names
+            status: matchStatus,
+            scorer: null,
             stats: {
               cornersHome, cornersAway,
               yellowsHome, yellowsAway,
               redsHome, redsAway,
-              // TxLINE doesn't provide shots/possession in basic Stats — use null
               possessionHome: null, possessionAway: null,
               shotsHome: null, shotsAway: null,
               shotsOnTargetHome: null, shotsOnTargetAway: null,
               foulsHome: null, foulsAway: null,
             },
-            events,
-            lastAction,
+            events: newEvents,
             ts: Date.now(),
           });
 
