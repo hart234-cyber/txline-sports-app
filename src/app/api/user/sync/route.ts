@@ -1,19 +1,8 @@
 import { NextResponse } from "next/server";
-import { rateLimit } from "@/middleware/rateLimit";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  // Production rate limiting
-  const rate = rateLimit("user-sync", { maxRequests: 30, windowMs: 60000 });
-  const rateCheck = rate(req);
-  if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { success: false, error: "Rate limit exceeded. Try again later.", retryAfter: rateCheck.retryAfter },
-      { status: 429, headers: { "Retry-After": String(rateCheck.retryAfter) } }
-    );
-  }
-
   try {
     const { walletAddress, currentStreak, bestStreak, username } =
       await req.json();
@@ -86,13 +75,13 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       demo: true,
-      message: "Streak saved locally. Set DATABASE_URL to enable persistent leaderboard.",
+      message:
+        "Streak saved locally. Set DATABASE_URL to enable persistent leaderboard.",
       user: {
         walletAddress,
         currentStreak: currentStreak || 0,
         bestStreak: bestStreak || 0,
       },
-      toast: { type: "warning", message: "Leaderboard uses localStorage — set DATABASE_URL for persistent scores." },
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);

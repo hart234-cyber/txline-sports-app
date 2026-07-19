@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { rateLimit } from "@/middleware/rateLimit";
 
 // Human-style pundit commentary templates to avoid generic AI speech
 const HUMAN_PUNDITRIES = {
@@ -19,27 +18,8 @@ const HUMAN_PUNDITRIES = {
 };
 
 export async function POST(req: Request) {
-  // Production rate limiting
-  const rate = rateLimit("telegram-pundit", { maxRequests: 10, windowMs: 60000 });
-  const rateCheck = rate(req);
-  if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { success: false, error: "Rate limit exceeded. Try again later.", retryAfter: rateCheck.retryAfter },
-      { status: 429, headers: { "Retry-After": String(rateCheck.retryAfter) } }
-    );
-  }
-
   try {
-    const body = await req.json();
-    // Basic server-side auth: require a secret header to prevent open abuse
-    const authHeader = req.headers.get("x-streakline-secret") || "";
-    const expectedSecret = process.env.STREAKLINE_SECRET || process.env.TELEGRAM_SECRET || "";
-    // User chat messages don't require auth; broadcasts (goal/card/etc) do
-    if (expectedSecret && body.eventType !== "message" && authHeader !== expectedSecret) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { botToken, chatId, eventType, homeTeam, awayTeam, score, details, scorer, player, team, oldOdds, newOdds } = body;
+    const { botToken, chatId, eventType, homeTeam, awayTeam, score, details, scorer, player, team, oldOdds, newOdds } = await req.json();
 
     if (!botToken || !chatId) {
       return NextResponse.json({ success: false, error: "Bot token and Chat ID are required" }, { status: 400 });

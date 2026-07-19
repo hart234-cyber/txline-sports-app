@@ -5,10 +5,6 @@ import { fetchFixtures, STATS, getReplayValue, getOddsSpark, flagUrl, extractSta
 import { getPunditTake, speakPundit, stopSpeak, type PunditTake } from "@/lib/ai-pundit";
 import MatchRail from "./MatchRail";
 import Leaderboard from "./Leaderboard";
-import { useSoundEngine } from "./SoundEngine";
-import { triggerConfetti } from "./ConfettiLayer";
-import { generateMerkleProof as makeProof, ProofDrawer } from "./ProofDrawer";
-import { useToasts, ToastContainer } from "./Toast";
 
 type Round = {
   fixture: Fixture;
@@ -99,7 +95,6 @@ export default function StreakGame({ externalFixtureId, hideLeaderboard }: { ext
 
   // SSE Stream reference
   const eventSourceRef = useRef<EventSource | null>(null);
-  const { addToast, toasts } = useToasts();
 
   useEffect(() => {
     fetchFixtures().then(({ fixtures, source }) => {
@@ -202,7 +197,6 @@ export default function StreakGame({ externalFixtureId, hideLeaderboard }: { ext
 
     es.onerror = (err) => {
       console.error("SSE Connection Error.", err);
-      addToast("Live stream disconnected — falling back to demo mode.", "warning", 4000);
     };
   };
 
@@ -214,11 +208,119 @@ export default function StreakGame({ externalFixtureId, hideLeaderboard }: { ext
     setStreamActive(false);
   };
 
-  // Browser Web Audio Synthesis via reusable engine
-  const { playSound } = useSoundEngine(isMuted);
+  // Browser Web Audio Synthesis helper (0 network requests, lightweight oscillators)
+  const playSound = (type: "win" | "lose" | "click" | "hover" | "goal") => {
+    if (isMuted) return;
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+      
+      if (type === "win") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+        osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+        osc.frequency.setValueAtTime(1046.50, now + 0.24); // C6
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+        osc.start(now);
+        osc.stop(now + 0.55);
+      } else if (type === "lose") {
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(196.00, now); // G3
+        osc.frequency.linearRampToValueAtTime(110.00, now + 0.35); // A2
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.start(now);
+        osc.stop(now + 0.45);
+      } else if (type === "click") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(987.77, now); // B5
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === "hover") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(440, now); // A4
+        gain.gain.setValueAtTime(0.02, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+        osc.start(now);
+        osc.stop(now + 0.04);
+      } else if (type === "goal") {
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(440.00, now);
+        osc.frequency.linearRampToValueAtTime(880.00, now + 0.25);
+        osc.frequency.linearRampToValueAtTime(440.00, now + 0.5);
+        osc.frequency.linearRampToValueAtTime(880.00, now + 0.75);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+        osc.start(now);
+        osc.stop(now + 1.1);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
-  // Confetti trigger imported from reusable layer
-  const runConfetti = triggerConfetti;
+  // Lightweight HTML5 canvas confetti simulation
+  const triggerConfetti = () => {
+    const canvas = document.getElementById("confetti-canvas") as HTMLCanvasElement;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    const particles: any[] = [];
+    const colors = ["#00ff88", "#00f0ff", "#d4af37", "#ff2255", "#ffffff"];
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    for (let i = 0; i < 90; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * -canvas.height - 20,
+        r: 3 + Math.random() * 4,
+        d: Math.random() * canvas.height,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        tilt: Math.random() * 10 - 5,
+        tiltAngleIncremental: Math.random() * 0.06 + 0.02,
+        tiltAngle: 0
+      });
+    }
+    
+    let frameId: number;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let active = false;
+      particles.forEach(p => {
+        p.y += (Math.cos(p.d) + 3.5 + p.r / 2) / 2;
+        p.tiltAngle += p.tiltAngleIncremental;
+        p.x += Math.sin(p.tiltAngle);
+        p.tilt = Math.sin(p.tiltAngle - p.r / 2) * 12;
+        
+        ctx.beginPath();
+        ctx.lineWidth = p.r * 1.8;
+        ctx.strokeStyle = p.color;
+        ctx.moveTo(p.x + p.tilt + p.r / 2, p.y);
+        ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 2);
+        ctx.stroke();
+        
+        if (p.y < canvas.height) active = true;
+      });
+      
+      if (active) {
+        frameId = requestAnimationFrame(draw);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    };
+    draw();
+  };
 
   // Fullscreen Goal flash system
   const triggerGoalAlarm = (homeScore: number, awayScore: number, scorer?: string) => {
@@ -253,10 +355,19 @@ export default function StreakGame({ externalFixtureId, hideLeaderboard }: { ext
     }
   };
 
-  // On-Chain cryptographic proof generator (simulate Merkle root hashing) — imported reusable layer
+  // On-Chain cryptographic proof generator (simulate Merkle root hashing)
   const generateMerkleProof = (outcomeVal: number, chosenStat: StatKey) => {
-    const proof = makeProof(outcomeVal, chosenStat);
-    setMerkleProof(proof);
+    const chars = "0123456789abcdef";
+    const generateHash = (len = 32) => "0x" + Array.from({ length: len }, () => chars[Math.floor(Math.random() * 16)]).join("");
+    const sign = "5yHh" + Array.from({ length: 48 }, () => chars[Math.floor(Math.random() * 16)]).join("");
+    
+    setMerkleProof({
+      root: generateHash(32),
+      signature: sign,
+      block: 30420000 + Math.floor(Math.random() * 5000),
+      nodeHash: generateHash(16),
+      parentHash: generateHash(16),
+    });
   };
 
   const handleIncomingLiveValue = (liveValue: number) => {
@@ -283,7 +394,7 @@ export default function StreakGame({ externalFixtureId, hideLeaderboard }: { ext
     
     if (res === "win") {
       playSound("win");
-      runConfetti();
+      triggerConfetti();
       
       const ns = streak + 1;
       setStreak(ns);
@@ -344,10 +455,10 @@ export default function StreakGame({ externalFixtureId, hideLeaderboard }: { ext
     if (touchX.current == null || guess) return;
     const diffX = e.touches[0].clientX - touchX.current;
     setSwipeOffset(diffX);
-    if (diffX > 35) {
+    if (diffX > 25) {
       playSound("hover");
       setSwipeDirection("hi");
-    } else if (diffX < -35) {
+    } else if (diffX < -25) {
       playSound("hover");
       setSwipeDirection("lo");
     } else {
@@ -357,7 +468,7 @@ export default function StreakGame({ externalFixtureId, hideLeaderboard }: { ext
 
   const onTE = () => {
     if (touchX.current == null || guess) return;
-    if (Math.abs(swipeOffset) > 90) {
+    if (Math.abs(swipeOffset) > 70) {
       makeGuess(swipeOffset > 0 ? "hi" : "lo");
     }
     touchX.current = null;
@@ -850,9 +961,6 @@ export default function StreakGame({ externalFixtureId, hideLeaderboard }: { ext
       </div>
 
       {!hideLeaderboard && <Leaderboard currentStreak={streak} />}
-
-      {/* Production-grade toast container */}
-      <ToastContainer toasts={toasts} />
     </div>
   );
 }

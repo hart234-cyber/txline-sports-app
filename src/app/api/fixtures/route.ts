@@ -93,8 +93,17 @@ function getDemoFixtures() {
       homeCode: "ESP",
       away: "Argentina",
       awayCode: "ARG",
-      // Upcoming final
-      startTime: now + 26 * 60 * 60 * 1000,
+      // Today's final — 19:00 UTC
+      startTime: (() => {
+        const d = new Date();
+        d.setUTCHours(19, 0, 0, 0);
+        // If already past 21:00 UTC today, push to tomorrow
+        if (now > d.getTime() + 2 * 60 * 60 * 1000) {
+          d.setUTCDate(d.getUTCDate() + 1);
+          d.setUTCHours(19, 0, 0, 0);
+        }
+        return d.getTime();
+      })(),
       venue: "MetLife Stadium, New Jersey",
       round: "Final",
       competition: "FIFA World Cup 2026",
@@ -317,12 +326,15 @@ function getDemoFixtures() {
 
 // ─── Normalize a raw TxLINE fixture object ────────────────────────────────────
 function normalizeTxLineFixture(f: Record<string, unknown>, now: number) {
-  const startMs =
+  // Bug fix: TxLINE devnet returns StartTime in milliseconds (13 digits).
+  // Detect ms vs seconds to avoid year-58000 bug.
+  const rawSt =
     typeof f.StartTime === "number"
-      ? f.StartTime * 1000
+      ? f.StartTime
       : typeof f.startTime === "number"
       ? f.startTime
       : 0;
+  const startMs = rawSt > 1e12 ? rawSt : rawSt > 0 ? rawSt * 1000 : 0;
 
   const msSince = now - startMs;
   const isLive = msSince > 0 && msSince < 7200000;
@@ -335,6 +347,8 @@ function normalizeTxLineFixture(f: Record<string, unknown>, now: number) {
   else if (gsState === 4) status = "HT";
   else if (gsState === 5) status = "2H";
   else if (gsState === 8 || isPast) status = "FT";
+  // Bug fix: devnet keeps GameState=1 even for live matches — infer from elapsed time
+  else if (gsState === 1 && isLive) status = minute <= 45 ? "1H" : minute <= 50 ? "HT" : "2H";
   else if (isLive) status = minute <= 45 ? "1H" : "2H";
 
   const home = (f.Participant1 as string) || (f.home as string) || "Home";
@@ -398,23 +412,14 @@ export async function GET(req: Request) {
         // Exclude matches that finished more than 3 hours ago
         const threeHoursAgo = now - 3 * 60 * 60 * 1000;
 
+        // Deduplicate by fixtureId before any further processing
+        const seenIds = new Set<number>();
         const data = rawData
           .map((f: Record<string, unknown>) => normalizeTxLineFixture(f, now))
-          // Fix: ensure fixture 2626003 (France vs England) is always LIVE
-          // when the real API returns fixtures with missing/invalid startTime/status
-          .map((fixture) => {
-            if (fixture.fixtureId === 2626003) {
-              const liveStart = now - 35 * 60 * 1000;
-              return {
-                ...fixture,
-                status: "1H",
-                minute: 35,
-                startTime: liveStart,
-                homeScore: fixture.homeScore || Math.floor(Math.random() * 3),
-                awayScore: fixture.awayScore || Math.floor(Math.random() * 3),
-              };
-            }
-            return fixture;
+          .filter((f) => {
+            if (seenIds.has(f.fixtureId)) return false;
+            seenIds.add(f.fixtureId);
+            return true;
           })
           .filter((f) => {
             // Keep: live, upcoming, and recently finished (within 3h)

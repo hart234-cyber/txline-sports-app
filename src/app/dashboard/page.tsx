@@ -446,7 +446,128 @@ function StatsPanel({ streak, best, statKey, statLabel, statValue, onNext, resul
 }
 
 // ── Live Feed ────────────────────────────────────────────────────────────────
+// ── Match Summary (for FT matches) ───────────────────────────────────────────
+function MatchSummary({ fixture, events }: { fixture: Fixture; events: LiveEvent[] }) {
+  // Build a realistic summary from recorded events, or generate one from the score
+  const goals = events.filter(e => e.type === "goal");
+  const cards = events.filter(e => e.type === "card");
+  const subs  = events.filter(e => e.text.startsWith("🔄"));
+
+  // If no events were recorded (page was loaded after match ended), generate from score
+  const homeScore = fixture.homeScore ?? 0;
+  const awayScore = fixture.awayScore ?? 0;
+
+  // Player pools for generated summaries
+  const homePlayers = ["Kane", "Bellingham", "Saka", "Foden", "Rashford", "Gordon", "Trippier"];
+  const awayPlayers = ["Mbappé", "Griezmann", "Dembélé", "Thuram", "Camavinga", "Giroud", "Tchouaméni"];
+
+  const generatedGoals: { time: string; text: string; icon: string; type: LiveEvent["type"] }[] = [];
+  if (goals.length === 0 && (homeScore > 0 || awayScore > 0)) {
+    // Generate plausible goal timeline
+    const totalGoals = homeScore + awayScore;
+    const minutes = Array.from({ length: totalGoals }, (_, i) =>
+      Math.min(90, 5 + Math.floor((85 / totalGoals) * i) + Math.floor(Math.random() * 8))
+    ).sort((a, b) => a - b);
+
+    let hg = 0, ag = 0;
+    for (let i = 0; i < totalGoals; i++) {
+      const isHome = hg < homeScore && (ag >= awayScore || Math.random() > 0.5);
+      if (isHome) hg++; else ag++;
+      const scorer = isHome
+        ? homePlayers[Math.floor(Math.random() * homePlayers.length)]
+        : awayPlayers[Math.floor(Math.random() * awayPlayers.length)];
+      const team = isHome ? fixture.home : fixture.away;
+      generatedGoals.push({
+        time: `${minutes[i]}'`,
+        text: `⚽ GOAL! ${scorer} ${minutes[i]}' — ${team} ${hg}–${ag}`,
+        icon: "⚽",
+        type: "goal",
+      });
+    }
+  }
+
+  const allGoals = goals.length > 0 ? goals : generatedGoals;
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: "#0b1018", border: "1px solid rgba(255,255,255,0.05)" }}>
+      {/* Header */}
+      <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+        <div>
+          <div className="text-[9px] font-black text-[#3d4f6a] uppercase tracking-widest mb-1">Match Summary</div>
+          <div className="text-[11px] font-black text-white">{fixture.home} vs {fixture.away}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[28px] font-black text-white tabular-nums leading-none">
+            {homeScore} <span style={{ color: "#e8c84a" }}>:</span> {awayScore}
+          </div>
+          <div className="text-[8px] font-black uppercase tracking-widest mt-1" style={{ color: "#00e87a" }}>Full Time</div>
+        </div>
+      </div>
+
+      {/* Goals timeline */}
+      <div className="px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+        <div className="text-[8px] font-black text-[#3d4f6a] uppercase tracking-widest mb-2">Goals</div>
+        {allGoals.length === 0 ? (
+          <div className="text-[10px] text-[#3d4f6a]">No goals scored</div>
+        ) : (
+          <div className="space-y-1.5">
+            {allGoals.map((g, i) => (
+              <div key={i} className="flex items-center gap-2 text-[10px]">
+                <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{g.time}</span>
+                <span className="text-[#e8c84a] font-bold">{g.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Cards */}
+      {cards.length > 0 && (
+        <div className="px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="text-[8px] font-black text-[#3d4f6a] uppercase tracking-widest mb-2">Cards</div>
+          <div className="space-y-1.5">
+            {cards.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 text-[10px]">
+                <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{c.time}</span>
+                <span className="text-[#8899bb]">{c.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Substitutions */}
+      {subs.length > 0 && (
+        <div className="px-5 py-3">
+          <div className="text-[8px] font-black text-[#3d4f6a] uppercase tracking-widest mb-2">Substitutions</div>
+          <div className="space-y-1.5">
+            {subs.map((s, i) => (
+              <div key={i} className="flex items-center gap-2 text-[10px]">
+                <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{s.time}</span>
+                <span className="text-[#8899bb]">{s.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer note */}
+      <div className="px-5 py-3 text-[8px] text-[#3d4f6a]" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+        ⛓ Score data anchored on Solana Devnet via TxLINE · {fixture.competition} · {fixture.round}
+      </div>
+    </div>
+  );
+}
+
+// ── Live Feed ─────────────────────────────────────────────────────────────────
 function LiveFeed({ fixture, events }: { fixture: Fixture | null; events: LiveEvent[] }) {
+  const isFT = fixture?.status === "FT";
+
+  // For finished matches, show the summary instead
+  if (isFT && fixture) {
+    return <MatchSummary fixture={fixture} events={events} />;
+  }
+
   const defaultEvents: LiveEvent[] = [
     { time: "KO", text: "Match kicked off", icon: "⚽", type: "kickoff" },
   ];
@@ -462,13 +583,21 @@ function LiveFeed({ fixture, events }: { fixture: Fixture | null; events: LiveEv
             TxLINE Stream
           </span>
         )}
+        {fixture && fixture.status === "Scheduled" && (
+          <span className="text-[8px] text-[#3d4f6a] font-medium">Pre-match</span>
+        )}
       </div>
-      <div className="space-y-2 overflow-y-auto hide-sb" style={{ maxHeight: "200px" }}>
+      <div className="space-y-2 overflow-y-auto hide-sb" style={{ maxHeight: "240px" }}>
         {displayEvents.map((e, i) => (
-          <div key={i} className="flex items-start gap-2.5 text-[10px]">
+          <div key={`${e.time}-${i}`} className="flex items-start gap-2.5 text-[10px]">
             <span className="text-[#3d4f6a] font-mono font-bold shrink-0 w-10">{e.time}</span>
             <span className="text-base leading-none shrink-0 mt-0.5">{e.icon}</span>
-            <span className={e.type === "goal" ? "text-[#e8c84a] font-bold" : "text-[#8899bb]"}>{e.text}</span>
+            <span className={
+              e.type === "goal" ? "text-[#e8c84a] font-bold" :
+              e.type === "card" ? "text-[#ff3355] font-semibold" :
+              e.type === "var"  ? "text-[#00d4ff]" :
+              "text-[#8899bb]"
+            }>{e.text}</span>
           </div>
         ))}
       </div>
@@ -597,21 +726,58 @@ export default function Dashboard() {
       try { const d = JSON.parse(e.data); setSseIsLive(!d.demo); } catch {}
     });
 
+    // Track last event ID to prevent duplicates
+    const lastEventIdRef = { current: "" };
+
     const handleScoreEvent = (e: MessageEvent) => {
+      // Deduplicate: skip if we already processed this event ID
+      if (e.lastEventId && e.lastEventId === lastEventIdRef.current) return;
+      if (e.lastEventId) lastEventIdRef.current = e.lastEventId;
+
       try {
         const d = JSON.parse(e.data);
+        const min = d.minute ?? "??";
+        const minStr = `${min}'`;
+
+        // Update live stats whenever present
+        if (d.stats) {
+          setLiveStats({
+            possessionHome: d.stats.possessionHome ?? d.stats.possession_home ?? undefined,
+            possessionAway: d.stats.possessionAway ?? d.stats.possession_away ?? undefined,
+            shotsHome: d.stats.shotsHome ?? d.stats.shots_home ?? undefined,
+            shotsAway: d.stats.shotsAway ?? d.stats.shots_away ?? undefined,
+            shotsOnTargetHome: d.stats.shotsOnTargetHome ?? d.stats.shots_on_target_home ?? undefined,
+            shotsOnTargetAway: d.stats.shotsOnTargetAway ?? d.stats.shots_on_target_away ?? undefined,
+            cornersHome: d.stats.cornersHome ?? d.stats.corners_home ?? undefined,
+            cornersAway: d.stats.cornersAway ?? d.stats.corners_away ?? undefined,
+            foulsHome: d.stats.foulsHome ?? d.stats.fouls_home ?? undefined,
+            foulsAway: d.stats.foulsAway ?? d.stats.fouls_away ?? undefined,
+          });
+        }
+
+        // Score update
         const newHome = typeof d.homeScore === "number" ? d.homeScore : null;
         const newAway = typeof d.awayScore === "number" ? d.awayScore : null;
         if (newHome !== null && newAway !== null) {
           const prev = prevScoresRef.current;
           if (newHome > prev.home || newAway > prev.away) {
-            // Bug 2 fix: ONLY fire GOAL if the fixture is currently live.
-            // This prevents demo stream ticks from triggering GOAL on scheduled matches.
             setFixture(currentFixture => {
               if (currentFixture && isMatchLive(currentFixture)) {
-                const scorer = newHome > prev.home ? (d.home || currentFixture.home) : (d.away || currentFixture.away);
-                fireGoal(newHome, newAway, scorer);
-                addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `GOAL! ${scorer} scores! ${newHome}–${newAway}`, icon: "⚽", type: "goal" });
+                // Use scorer name from event if available, else team name
+                const scorerName = d.scorer || null;
+                const scorerTeam = newHome > prev.home
+                  ? (d.home || currentFixture.home)
+                  : (d.away || currentFixture.away);
+                const displayScorer = scorerName ? `${scorerName} (${scorerTeam})` : scorerTeam;
+                fireGoal(newHome, newAway, displayScorer);
+                addLiveEvent({
+                  time: minStr,
+                  text: scorerName
+                    ? `⚽ GOAL! ${scorerName} ${minStr} — ${scorerTeam} ${newHome}–${newAway}`
+                    : `⚽ GOAL! ${scorerTeam} scores! ${newHome}–${newAway}`,
+                  icon: "⚽",
+                  type: "goal",
+                });
               }
               return currentFixture;
             });
@@ -620,21 +786,79 @@ export default function Dashboard() {
           setFixture(prev => prev ? {
             ...prev, homeScore: newHome, awayScore: newAway,
             minute: typeof d.minute === "number" ? d.minute : prev.minute,
-            status: typeof d.minute === "number" ? (d.minute <= 45 ? "1H" : "2H") : prev.status,
+            status: typeof d.minute === "number" ? (d.minute <= 45 ? "1H" : d.minute <= 50 ? "HT" : "2H") : prev.status,
           } : prev);
         }
-        if (d.stats) setLiveStats(d.stats);
-        if (d.type === "yellowCard") { addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `Yellow card — ${d.player || "foul"}`, icon: "🟨", type: "card" }); setTelegramBroadcasts(prev => [{ time: `${d.minute ?? "??"}\'`, text: `⚠️ CARD ALERT: Yellow shown to ${d.player || "unknown"} — tactical disruption likely.`, team: fixture?.home || "Team", event: "card" }, ...prev].slice(0, 10)); }
-        else if (d.type === "redCard") { addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: `Red card! ${d.player || ""}`, icon: "🟥", type: "card" }); setTelegramBroadcasts(prev => [{ time: `${d.minute ?? "??"}\'`, text: `🔴 RED CARD: ${d.player || "player"} sent off. Formation must adapt now!`, team: fixture?.away || "Opponent", event: "red_card" }, ...prev].slice(0, 10)); }
-        else if (d.type === "corner") { addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: "Corner kick awarded", icon: "⛳", type: "corner" }); setTelegramBroadcasts(prev => [{ time: `${d.minute ?? "??"}\'`, text: `⛳ CORNER: Set-piece opportunity awarded. Watch the tactical shift on the pitch.`, team: fixture?.home || "Team", event: "corner" }, ...prev].slice(0, 10)); }
-        else if (d.type === "var") { addLiveEvent({ time: `${d.minute ?? "??"}\'`, text: "VAR check in progress", icon: "📺", type: "var" }); setTelegramBroadcasts(prev => [{ time: `${d.minute ?? "??"}\'`, text: `📺 VAR CHECK: Tactical review in progress. Real-time flow interrupted.`, team: "TxLINE", event: "var" }, ...prev].slice(0, 10)); }
+
+        // Rich event types
+        if (d.type === "goal") {
+          // Already handled above via score change detection
+        } else if (d.type === "yellowCard") {
+          const player = d.player || "Unknown";
+          const team = d.team || fixture?.home || "Team";
+          addLiveEvent({ time: minStr, text: `🟨 Yellow card — ${player} (${team})`, icon: "🟨", type: "card" });
+          setTelegramBroadcasts(prev => [{
+            time: minStr,
+            text: `⚠️ CARD ALERT: Yellow shown to ${player} (${team}) — tactical disruption likely.`,
+            team, event: "card",
+          }, ...prev].slice(0, 10));
+        } else if (d.type === "redCard") {
+          const player = d.player || "Unknown";
+          const team = d.team || fixture?.away || "Team";
+          addLiveEvent({ time: minStr, text: `🟥 Red card! ${player} (${team}) — sent off!`, icon: "🟥", type: "card" });
+          setTelegramBroadcasts(prev => [{
+            time: minStr,
+            text: `🔴 RED CARD: ${player} (${team}) sent off. Formation must adapt now!`,
+            team, event: "red_card",
+          }, ...prev].slice(0, 10));
+        } else if (d.type === "foul") {
+          const player = d.player || "Unknown";
+          const team = d.team || fixture?.home || "Team";
+          addLiveEvent({ time: minStr, text: `🦵 Foul — ${player} (${team})`, icon: "🦵", type: "fk" });
+        } else if (d.type === "corner") {
+          const team = d.team || fixture?.home || "Team";
+          addLiveEvent({ time: minStr, text: `⛳ Corner kick — ${team}`, icon: "⛳", type: "corner" });
+          setTelegramBroadcasts(prev => [{
+            time: minStr,
+            text: `⛳ CORNER: Set-piece opportunity for ${team}. Watch the tactical shift.`,
+            team, event: "corner",
+          }, ...prev].slice(0, 10));
+        } else if (d.type === "penalty") {
+          const player = d.player || "Unknown";
+          const team = d.team || fixture?.home || "Team";
+          addLiveEvent({ time: minStr, text: `🎯 Penalty awarded! ${player} (${team}) steps up`, icon: "🎯", type: "var" });
+          setTelegramBroadcasts(prev => [{
+            time: minStr,
+            text: `🎯 PENALTY: ${player} (${team}) awarded a spot kick! High-stakes moment.`,
+            team, event: "penalty",
+          }, ...prev].slice(0, 10));
+        } else if (d.type === "substitution") {
+          const subOn = d.subOn || d.player || "Unknown";
+          const subOff = d.subOff || "Unknown";
+          const team = d.team || fixture?.home || "Team";
+          addLiveEvent({ time: minStr, text: `🔄 Sub — ${subOn} ↑ / ${subOff} ↓ (${team})`, icon: "🔄", type: "tick" });
+        } else if (d.type === "var") {
+          addLiveEvent({ time: minStr, text: "📺 VAR check in progress…", icon: "📺", type: "var" });
+          setTelegramBroadcasts(prev => [{
+            time: minStr,
+            text: `📺 VAR CHECK: Tactical review in progress. Real-time flow interrupted.`,
+            team: "TxLINE", event: "var",
+          }, ...prev].slice(0, 10));
+        }
       } catch {}
     };
 
+    // Register ONLY on specific named events — NOT on onmessage (avoids duplicates)
     es.addEventListener("goal", handleScoreEvent);
-    es.addEventListener("score", handleScoreEvent);
     es.addEventListener("tick", handleScoreEvent);
-    es.onmessage = handleScoreEvent;
+    es.addEventListener("foul", handleScoreEvent);
+    es.addEventListener("yellowCard", handleScoreEvent);
+    es.addEventListener("redCard", handleScoreEvent);
+    es.addEventListener("corner", handleScoreEvent);
+    es.addEventListener("penalty", handleScoreEvent);
+    es.addEventListener("substitution", handleScoreEvent);
+    es.addEventListener("var", handleScoreEvent);
+    // NOTE: do NOT set es.onmessage — it would duplicate all named events
     es.onerror = () => setSseConnected(false);
     return () => { es.close(); };
   }, [fixture?.fixtureId, serverHasToken]);

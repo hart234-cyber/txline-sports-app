@@ -58,25 +58,51 @@ export function countryCode(name: string, fallback?: string): string {
   const n = (fallback || name).toUpperCase();
   const map: Record<string, string> = {
     ARGENTINA: "AR", FRANCE: "FR", BRAZIL: "BR", GERMANY: "DE",
-    SPAIN: "ES", ENGLAND: "GB-ENG", "UNITED STATES": "US",
+    SPAIN: "ES", ENGLAND: "GB-ENG", "UNITED STATES": "US", USA: "US",
     PORTUGAL: "PT", NETHERLANDS: "NL", BELGIUM: "BE", CROATIA: "HR",
     MOROCCO: "MA", JAPAN: "JP", MEXICO: "MX", SENEGAL: "SN",
     NIGERIA: "NG", URUGUAY: "UY", COLOMBIA: "CO", ITALY: "IT",
     CANADA: "CA", KOREA: "KR", AUSTRALIA: "AU", SWITZERLAND: "CH", DENMARK: "DK",
+    CHILE: "CL", PERU: "PE", ECUADOR: "EC", PARAGUAY: "PY", BOLIVIA: "BO",
+    VENEZUELA: "VE", PANAMA: "PA", COSTA_RICA: "CR", "COSTA RICA": "CR",
+    HONDURAS: "HN", GUATEMALA: "GT", JAMAICA: "JM", TRINIDAD: "TT",
+    WALES: "GB-WLS", SCOTLAND: "GB-SCT", "NORTHERN IRELAND": "GB-NIR",
+    IRELAND: "IE", AUSTRIA: "AT", SWEDEN: "SE", NORWAY: "NO", FINLAND: "FI",
+    POLAND: "PL", CZECHIA: "CZ", SLOVAKIA: "SK", HUNGARY: "HU", ROMANIA: "RO",
+    SERBIA: "RS", UKRAINE: "UA", RUSSIA: "RU", TURKEY: "TR", GREECE: "GR",
+    LIECHTENSTEIN: "LI", GIBRALTAR: "GI", "NEW ZEALAND": "NZ", INDIA: "IN",
+    VIETNAM: "VN", MYANMAR: "MM", INDONESIA: "ID", THAILAND: "TH",
+    CHINA: "CN", "SOUTH KOREA": "KR", "NORTH KOREA": "KP",
+    CAMEROON: "CM", GHANA: "GH", "IVORY COAST": "CI", EGYPT: "EG",
+    ALGERIA: "DZ", TUNISIA: "TN", KENYA: "KE", ETHIOPIA: "ET",
+    "SAUDI ARABIA": "SA", IRAN: "IR", IRAQ: "IQ", UAE: "AE",
+    QATAR: "QA", KUWAIT: "KW", BAHRAIN: "BH", JORDAN: "JO",
+    // 3-letter codes
     ARG: "AR", FRA: "FR", BRA: "BR", GER: "DE", ESP: "ES", ENG: "GB-ENG",
-    USA: "US", POR: "PT", NED: "NL", BEL: "BE", CRO: "HR", MAR: "MA",
+    POR: "PT", NED: "NL", BEL: "BE", CRO: "HR", MAR: "MA",
     JPN: "JP", MEX: "MX", SEN: "SN", NGA: "NG", URU: "UY", COL: "CO",
-    VIETNAM: "VN", MYANMAR: "MM", "NEW ZEALAND": "NZ", INDIA: "IN",
     VIE: "VN", MYA: "MM", NZL: "NZ", IND: "IN", AUS: "AU",
+    CHI: "CL", PER: "PE", ECU: "EC", PAR: "PY", BOL: "BO",
+    VEN: "VE", PAN: "PA", CRC: "CR", HON: "HN", GUA: "GT",
+    WAL: "GB-WLS", SCO: "GB-SCT", IRL: "IE", AUT: "AT", SWE: "SE",
+    NOR: "NO", FIN: "FI", POL: "PL", CZE: "CZ", SVK: "SK", HUN: "HU",
+    ROU: "RO", SRB: "RS", UKR: "UA", RUS: "RU", TUR: "TR", GRE: "GR",
+    LIE: "LI", GIB: "GI", CMR: "CM", GHA: "GH", CIV: "CI", EGY: "EG",
+    ALG: "DZ", TUN: "TN", KSA: "SA", IRN: "IR", IRQ: "IQ",
+    MIA: "US", LAG: "US", NYC: "US", ATL: "US", SEA: "US",
+    MIL: "IT", JUV: "IT", INT: "IT", NAP: "IT",
   };
   return map[n] || (n.length === 2 ? n : "UN");
 }
 
 // flagcdn – crisp SVG flags, professional, no emoji rendering issues
+// Handles subdivision codes like GB-ENG correctly
 export function flagUrl(countryCodeStr: string, size: 20|40|80 = 40): string {
-  const c = countryCode(countryCodeStr).toLowerCase().split("-")[0];
+  const code = countryCode(countryCodeStr);
   const w = size === 20 ? 20 : size === 80 ? 80 : 40;
-  return `https://flagcdn.com/w${w}/${c}.png`;
+  // flagcdn supports subdivision codes like gb-eng, gb-wls, gb-sct
+  const cdnCode = code.toLowerCase();
+  return `https://flagcdn.com/w${w}/${cdnCode}.png`;
 }
 
 export async function fetchFixtures(): Promise<{fixtures: Fixture[], source: "txline_live"|"txline_replay"|"demo"}> {
@@ -92,22 +118,26 @@ export async function fetchFixtures(): Promise<{fixtures: Fixture[], source: "tx
     const params = token && !token.startsWith("demo_") ? `?token=${encodeURIComponent(token)}` : "";
     const r = await fetch(`/api/fixtures${params}`, { cache: "no-store" });
     const j = await r.json();
-    const fixtures: Fixture[] = (j.data || []).map((f: any, index: number) => {
-      const home = f.home || f.Participant1 || f.participant1?.name || f.p1 || "Home";
-      const away = f.away || f.Participant2 || f.participant2?.name || f.p2 || "Away";
-      const homeCode = f.homeCode || home.slice(0,3).toUpperCase();
-      const awayCode = f.awayCode || away.slice(0,3).toUpperCase();
+    const fixtures: Fixture[] = (j.data || []).map((f: Record<string, unknown>, index: number) => {
+      const home = (f.home as string) || (f.Participant1 as string) || "Home";
+      const away = (f.away as string) || (f.Participant2 as string) || "Away";
+      const homeCode = (f.homeCode as string) || home.slice(0,3).toUpperCase();
+      const awayCode = (f.awayCode as string) || away.slice(0,3).toUpperCase();
       return {
-        fixtureId: f.fixtureId ?? f.FixtureId ?? f.id ?? (index + 1),
+        fixtureId: (f.fixtureId as number) ?? (f.FixtureId as number) ?? (f.id as number) ?? (index + 1),
         home, away, homeCode, awayCode,
-        status: f.status || (f.GameState === 1 ? "Scheduled" : "LIVE"),
-        minute: f.minute ?? 0,
-        homeScore: f.homeScore ?? 0,
-        awayScore: f.awayScore ?? 0,
-        competition: f.competition || f.Competition || "FIFA World Cup 2026",
+        status: (f.status as string) || ((f.GameState as number) === 1 ? "Scheduled" : "LIVE"),
+        minute: (f.minute as number) ?? 0,
+        homeScore: (f.homeScore as number) ?? 0,
+        awayScore: (f.awayScore as number) ?? 0,
+        competition: (f.competition as string) || (f.Competition as string) || "FIFA World Cup 2026",
+        startTime: (f.startTime as number) ?? 0,
+        venue: (f.venue as string) || "",
+        round: (f.round as string) || "",
+        group: (f.group as string) || "",
       };
     });
-    return { fixtures, source: (j.source || "demo") as any };
+    return { fixtures, source: ((j.source || "demo") as "txline_live"|"txline_replay"|"demo") };
   } catch {
     return { fixtures: [], source: "demo" };
   }
