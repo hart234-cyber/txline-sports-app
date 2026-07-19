@@ -74,15 +74,15 @@ function getDemoFixtures() {
   };
 
   const schedule: RawFixture[] = [
-    // ── FIFA WORLD CUP 2026 ──────────────────────────────────────────────────
+    // ── FIFA WORLD CUP 2026 ──────────────────────────────────────────────────────
     {
       fixtureId: 2626003,
-      home: "France",
-      homeCode: "FRA",
-      away: "England",
-      awayCode: "ENG",
-      // Dynamic live match: started 35 minutes ago → 1H (live now)
-      startTime: now - 35 * 60 * 1000,
+      home: "England",
+      homeCode: "ENG",
+      away: "France",
+      awayCode: "FRA",
+      // FT: ended ~3 hours ago — England 6-4 France (3rd Place)
+      startTime: now - 3 * 60 * 60 * 1000,
       venue: "Hard Rock Stadium, Miami",
       round: "3rd Place",
       competition: "FIFA World Cup 2026",
@@ -93,15 +93,10 @@ function getDemoFixtures() {
       homeCode: "ESP",
       away: "Argentina",
       awayCode: "ARG",
-      // Today's final — 19:00 UTC
+      // Today's final — 19:00 UTC (always today, never pushed to tomorrow)
       startTime: (() => {
         const d = new Date();
         d.setUTCHours(19, 0, 0, 0);
-        // If already past 21:00 UTC today, push to tomorrow
-        if (now > d.getTime() + 2 * 60 * 60 * 1000) {
-          d.setUTCDate(d.getUTCDate() + 1);
-          d.setUTCHours(19, 0, 0, 0);
-        }
         return d.getTime();
       })(),
       venue: "MetLife Stadium, New Jersey",
@@ -276,8 +271,8 @@ function getDemoFixtures() {
     },
   ];
 
-  // Exclude matches that finished more than 3 hours ago (keep recent FT + upcoming)
-  const threeHoursAgo = now - 3 * 60 * 60 * 1000;
+  // Exclude matches that finished more than 4 hours ago (keep recent FT + upcoming)
+  const threeHoursAgo = now - 4 * 60 * 60 * 1000;
 
   return schedule
     .filter((f) => {
@@ -306,8 +301,8 @@ function getDemoFixtures() {
         awayCode: f.awayCode,
         status,
         minute: isLive ? minute : 0,
-        homeScore: 0,
-        awayScore: 0,
+        homeScore: isPast && f.fixtureId === 2626003 ? 6 : isLive && f.fixtureId === 2626003 ? Math.min(6, Math.floor(msSince / 1800000) + 1) : 0,
+        awayScore: isPast && f.fixtureId === 2626003 ? 4 : isLive && f.fixtureId === 2626003 ? Math.min(4, Math.floor(msSince / 2400000)) : 0,
         competition: f.competition,
         startTime: f.startTime,
         venue: f.venue,
@@ -409,8 +404,8 @@ export async function GET(req: Request) {
         if (!Array.isArray(rawData) || rawData.length === 0) continue;
 
         const now = Date.now();
-        // Exclude matches that finished more than 3 hours ago
-        const threeHoursAgo = now - 3 * 60 * 60 * 1000;
+        // Exclude matches that finished more than 4 hours ago
+        const threeHoursAgo = now - 4 * 60 * 60 * 1000;
 
         // Deduplicate by fixtureId before any further processing
         const seenIds = new Set<number>();

@@ -119,7 +119,8 @@ function LiveMatchHero({ fixture, streak, best, onGuess, pundit, result, guess, 
         <div className="flex flex-col items-center gap-3 w-32">
           <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden shadow-xl"
                style={{ border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
-            <img src={flagUrl(fixture.homeCode || fixture.home, 80)} alt={fixture.home} className="w-full h-full object-cover scale-110" />
+            <img src={flagUrl(fixture.homeCode || fixture.home, 80)} alt={fixture.home} className="w-full h-full object-cover scale-110"
+               onError={(e) => { const t = e.target as HTMLImageElement; t.src = `https://flagcdn.com/w80/${(fixture.homeCode||fixture.home).slice(0,2).toLowerCase()}.png`; t.onerror = null; }} />
           </div>
           <div className="text-center">
             <div className="text-[9px] font-black tracking-widest text-[#8899bb] uppercase">{fixture.homeCode || fixture.home.slice(0,3)}</div>
@@ -195,7 +196,8 @@ function LiveMatchHero({ fixture, streak, best, onGuess, pundit, result, guess, 
         <div className="flex flex-col items-center gap-3 w-32">
           <div className="w-[72px] h-[72px] rounded-2xl overflow-hidden shadow-xl"
                style={{ border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
-            <img src={flagUrl(fixture.awayCode || fixture.away, 80)} alt={fixture.away} className="w-full h-full object-cover scale-110" />
+            <img src={flagUrl(fixture.awayCode || fixture.away, 80)} alt={fixture.away} className="w-full h-full object-cover scale-110"
+               onError={(e) => { const t = e.target as HTMLImageElement; t.src = `https://flagcdn.com/w80/${(fixture.awayCode||fixture.away).slice(0,2).toLowerCase()}.png`; t.onerror = null; }} />
           </div>
           <div className="text-center">
             <div className="text-[9px] font-black tracking-widest text-[#8899bb] uppercase">{fixture.awayCode || fixture.away.slice(0,3)}</div>
@@ -288,6 +290,8 @@ function FixtureSidebar({ fixtures, activeId, onPick }: {
   const FixtureRow = ({ f }: { f: Fixture }) => {
     const active = f.fixtureId === activeId;
     const lv = isMatchLive(f);
+    const ft = f.status === "FT";
+    const showScore = lv || ft;
     const isWC = f.competition?.toLowerCase().includes("world cup") || f.competition?.toLowerCase().includes("fifa");
     return (
       <button onClick={() => onPick(f)}
@@ -298,14 +302,16 @@ function FixtureSidebar({ fixtures, activeId, onPick }: {
         <div className="flex items-center gap-2">
           <div className="flex flex-col gap-1.5 flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <img src={flagUrl(f.homeCode || f.home, 20)} alt="" width={14} height={10} className="rounded-sm object-cover opacity-80" />
+              <img src={flagUrl(f.homeCode || f.home, 20)} alt="" width={14} height={10} className="rounded-sm object-cover opacity-80"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
               <span className={`text-[11px] font-bold truncate transition-colors ${active ? "text-white" : "text-[#c8d4e8] group-hover:text-white"}`}>{f.home}</span>
-              {lv && <span className="ml-auto font-black text-[11px] text-white tabular-nums">{f.homeScore ?? 0}</span>}
+              {showScore && <span className="ml-auto font-black text-[11px] text-white tabular-nums">{f.homeScore ?? 0}</span>}
             </div>
             <div className="flex items-center gap-1.5">
-              <img src={flagUrl(f.awayCode || f.away, 20)} alt="" width={14} height={10} className="rounded-sm object-cover opacity-80" />
+              <img src={flagUrl(f.awayCode || f.away, 20)} alt="" width={14} height={10} className="rounded-sm object-cover opacity-80"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
               <span className={`text-[11px] font-bold truncate transition-colors ${active ? "text-[#8899bb]" : "text-[#3d4f6a] group-hover:text-[#8899bb]"}`}>{f.away}</span>
-              {lv && <span className="ml-auto font-black text-[11px] text-[#8899bb] tabular-nums">{f.awayScore ?? 0}</span>}
+              {showScore && <span className="ml-auto font-black text-[11px] text-[#8899bb] tabular-nums">{f.awayScore ?? 0}</span>}
             </div>
             {f.competition && (
               <span className={`text-[8px] font-bold tracking-wide px-1.5 py-0.5 rounded-full w-fit truncate max-w-[140px] ${
@@ -316,7 +322,7 @@ function FixtureSidebar({ fixtures, activeId, onPick }: {
               </span>
             )}
           </div>
-          {!lv && (
+          {!showScore && (
             <div className="text-right shrink-0">
               <div className="text-[9px] text-[#3d4f6a] font-medium leading-tight">
                 {f.startTime ? new Date(f.startTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) : "--:--"}
@@ -331,6 +337,11 @@ function FixtureSidebar({ fixtures, activeId, onPick }: {
               <span className="text-[8px] text-[#ff3355] font-black tracking-wider">{f.minute ? `${f.minute}'` : "LIVE"}</span>
             </div>
           )}
+          {ft && (
+            <div className="shrink-0">
+              <span className="text-[8px] text-[#3d4f6a] font-black tracking-wider">FT</span>
+            </div>
+          )}
         </div>
       </button>
     );
@@ -340,10 +351,12 @@ function FixtureSidebar({ fixtures, activeId, onPick }: {
   const otherFixtures = fixtures.filter(f => !f.competition?.toLowerCase().includes("world cup") && !f.competition?.toLowerCase().includes("fifa"));
   const wcLive = wcFixtures.filter(isMatchLive);
   const wcUpcoming = wcFixtures.filter(f => !isMatchLive(f) && f.status !== "FT");
+  const wcFT = wcFixtures.filter(f => f.status === "FT");
   const otherLive = otherFixtures.filter(isMatchLive);
   const otherUpcoming = otherFixtures.filter(f => !isMatchLive(f) && f.status !== "FT");
   const allLive = [...wcLive, ...otherLive];
   const allUpcoming = [...wcUpcoming, ...otherUpcoming];
+  const allFT = [...wcFT, ...otherFixtures.filter(f => f.status === "FT")];
 
   return (
     <div className="flex flex-col gap-0.5 overflow-y-auto hide-sb" style={{ maxHeight: "calc(100vh - 120px)" }}>
@@ -375,7 +388,16 @@ function FixtureSidebar({ fixtures, activeId, onPick }: {
           {otherUpcoming.map((f, i) => <FixtureRow key={`ot-${f.fixtureId}-${i}`} f={f} />)}
         </>
       )}
-      {allLive.length === 0 && allUpcoming.length === 0 && (
+      {allFT.length > 0 && (
+        <>
+          <div className="flex items-center gap-2 px-3 py-2 mt-2">
+            <span className="text-[9px] font-black text-[#3d4f6a] uppercase tracking-widest">✅ Recent Results</span>
+            <span className="ml-auto text-[9px] text-[#3d4f6a] font-black">{allFT.length}</span>
+          </div>
+          {allFT.map((f, i) => <FixtureRow key={`ft-${f.fixtureId}-${i}`} f={f} />)}
+        </>
+      )}
+      {allLive.length === 0 && allUpcoming.length === 0 && allFT.length === 0 && (
         <div className="px-3 py-6 text-center text-[10px] text-[#3d4f6a]">No upcoming matches</div>
       )}
     </div>
@@ -448,6 +470,38 @@ function StatsPanel({ streak, best, statKey, statLabel, statValue, onNext, resul
 // ── Live Feed ────────────────────────────────────────────────────────────────
 // ── Match Summary (for FT matches) ───────────────────────────────────────────
 function MatchSummary({ fixture, events }: { fixture: Fixture; events: LiveEvent[] }) {
+  // Hardcoded match data for known completed fixtures
+  const KNOWN_SUMMARIES: Record<number, {
+    goals: { time: string; scorer: string; team: string; score: string }[];
+    cards: { time: string; player: string; team: string; type: string }[];
+    subs: { time: string; on: string; off: string; team: string }[];
+  }> = {
+    2626003: {
+      goals: [
+        { time: "12'", scorer: "Kane", team: "England", score: "1–0" },
+        { time: "23'", scorer: "Mbappé", team: "France", score: "1–1" },
+        { time: "34'", scorer: "Kane", team: "England", score: "2–1" },
+        { time: "45'", scorer: "Bellingham", team: "England", score: "3–1" },
+        { time: "56'", scorer: "Mbappé", team: "France", score: "3–2" },
+        { time: "67'", scorer: "Kane", team: "England", score: "4–2" },
+        { time: "71'", scorer: "Griezmann", team: "France", score: "4–3" },
+        { time: "78'", scorer: "Saka", team: "England", score: "5–3" },
+        { time: "82'", scorer: "Dembélé", team: "France", score: "5–4" },
+        { time: "89'", scorer: "Kane", team: "England", score: "6–4" },
+      ],
+      cards: [
+        { time: "44'", player: "Tchouaméni", team: "France", type: "🟨 Yellow" },
+        { time: "88'", player: "Upamecano", team: "France", type: "🟨 Yellow" },
+      ],
+      subs: [
+        { time: "60'", on: "Rashford", off: "Gordon", team: "England" },
+        { time: "65'", on: "Giroud", off: "Thuram", team: "France" },
+      ],
+    },
+  };
+
+  const known = KNOWN_SUMMARIES[fixture.fixtureId ?? 0];
+
   // Build a realistic summary from recorded events, or generate one from the score
   const goals = events.filter(e => e.type === "goal");
   const cards = events.filter(e => e.type === "card");
@@ -462,7 +516,7 @@ function MatchSummary({ fixture, events }: { fixture: Fixture; events: LiveEvent
   const awayPlayers = ["Mbappé", "Griezmann", "Dembélé", "Thuram", "Camavinga", "Giroud", "Tchouaméni"];
 
   const generatedGoals: { time: string; text: string; icon: string; type: LiveEvent["type"] }[] = [];
-  if (goals.length === 0 && (homeScore > 0 || awayScore > 0)) {
+  if (!known && goals.length === 0 && (homeScore > 0 || awayScore > 0)) {
     // Generate plausible goal timeline
     const totalGoals = homeScore + awayScore;
     const minutes = Array.from({ length: totalGoals }, (_, i) =>
@@ -486,7 +540,11 @@ function MatchSummary({ fixture, events }: { fixture: Fixture; events: LiveEvent
     }
   }
 
-  const allGoals = goals.length > 0 ? goals : generatedGoals;
+  const allGoals = known
+    ? known.goals
+    : goals.length > 0 ? goals : generatedGoals;
+  const allCards = known ? known.cards : cards;
+  const allSubs = known ? known.subs : subs;
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: "#0b1018", border: "1px solid rgba(255,255,255,0.05)" }}>
@@ -511,42 +569,67 @@ function MatchSummary({ fixture, events }: { fixture: Fixture; events: LiveEvent
           <div className="text-[10px] text-[#3d4f6a]">No goals scored</div>
         ) : (
           <div className="space-y-1.5">
-            {allGoals.map((g, i) => (
-              <div key={i} className="flex items-center gap-2 text-[10px]">
-                <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{g.time}</span>
-                <span className="text-[#e8c84a] font-bold">{g.text}</span>
-              </div>
-            ))}
+            {known
+              ? known.goals.map((g, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px]">
+                    <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{g.time}</span>
+                    <span className="text-[#e8c84a] font-bold">⚽ {g.scorer} — {g.team}</span>
+                    <span className="ml-auto text-[#8899bb] font-mono text-[9px]">{g.score}</span>
+                  </div>
+                ))
+              : (allGoals as LiveEvent[]).map((g, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px]">
+                    <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{g.time}</span>
+                    <span className="text-[#e8c84a] font-bold">{g.text}</span>
+                  </div>
+                ))
+            }
           </div>
         )}
       </div>
 
       {/* Cards */}
-      {cards.length > 0 && (
+      {allCards.length > 0 && (
         <div className="px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           <div className="text-[8px] font-black text-[#3d4f6a] uppercase tracking-widest mb-2">Cards</div>
           <div className="space-y-1.5">
-            {cards.map((c, i) => (
-              <div key={i} className="flex items-center gap-2 text-[10px]">
-                <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{c.time}</span>
-                <span className="text-[#8899bb]">{c.text}</span>
-              </div>
-            ))}
+            {known
+              ? known.cards.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px]">
+                    <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{c.time}</span>
+                    <span className="text-[#8899bb]">{c.type} — {c.player} ({c.team})</span>
+                  </div>
+                ))
+              : (allCards as LiveEvent[]).map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px]">
+                    <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{c.time}</span>
+                    <span className="text-[#8899bb]">{c.text}</span>
+                  </div>
+                ))
+            }
           </div>
         </div>
       )}
 
       {/* Substitutions */}
-      {subs.length > 0 && (
+      {allSubs.length > 0 && (
         <div className="px-5 py-3">
           <div className="text-[8px] font-black text-[#3d4f6a] uppercase tracking-widest mb-2">Substitutions</div>
           <div className="space-y-1.5">
-            {subs.map((s, i) => (
-              <div key={i} className="flex items-center gap-2 text-[10px]">
-                <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{s.time}</span>
-                <span className="text-[#8899bb]">{s.text}</span>
-              </div>
-            ))}
+            {known
+              ? known.subs.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px]">
+                    <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{s.time}</span>
+                    <span className="text-[#8899bb]">🔄 {s.on} ↑ / {s.off} ↓ ({s.team})</span>
+                  </div>
+                ))
+              : (allSubs as LiveEvent[]).map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px]">
+                    <span className="text-[#3d4f6a] font-mono w-8 shrink-0">{s.time}</span>
+                    <span className="text-[#8899bb]">{s.text}</span>
+                  </div>
+                ))
+            }
           </div>
         </div>
       )}
@@ -1130,10 +1213,17 @@ export default function Dashboard() {
                   {sseIsLive ? "TxLINE Live" : serverHasToken ? "TxLINE Ready" : "TxLINE Demo"}
                 </span>
               </>
-            ) : (
+            ) : loading ? (
               <>
                 <span className="w-1.5 h-1.5 rounded-full bg-[#3d4f6a]" />
-                <span className="text-[9px] text-[#3d4f6a]">Connecting…</span>
+                <span className="text-[9px] text-[#3d4f6a]">Loading…</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#e8c84a" }} />
+                <span className="text-[9px] font-bold" style={{ color: "#e8c84a" }}>
+                  {serverHasToken ? "TxLINE Ready" : "Demo Mode"}
+                </span>
               </>
             )}
           </div>
