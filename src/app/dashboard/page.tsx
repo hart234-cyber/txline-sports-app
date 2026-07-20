@@ -65,14 +65,14 @@ function LiveMatchHero({ fixture, streak, best, onGuess, pundit, result, guess, 
   const ft = fixture.status === "FT";
   const hasScore = live || ft;
   const statsBar = live ? [
-    { l: "Poss", h: liveStats?.possessionHome != null ? `${liveStats.possessionHome}%` : "—", a: liveStats?.possessionAway != null ? `${liveStats.possessionAway}%` : "—" },
-    { l: "Shots", h: liveStats?.shotsHome != null ? String(liveStats.shotsHome) : "—", a: liveStats?.shotsAway != null ? String(liveStats.shotsAway) : "—" },
-    { l: "On Tgt", h: liveStats?.shotsOnTargetHome != null ? String(liveStats.shotsOnTargetHome) : "—", a: liveStats?.shotsOnTargetAway != null ? String(liveStats.shotsOnTargetAway) : "—" },
-    { l: "Corners", h: liveStats?.cornersHome != null ? String(liveStats.cornersHome) : "—", a: liveStats?.cornersAway != null ? String(liveStats.cornersAway) : "—" },
-    { l: "Fouls", h: liveStats?.foulsHome != null ? String(liveStats.foulsHome) : "—", a: liveStats?.foulsAway != null ? String(liveStats.foulsAway) : "—" },
+    { l: "Corners", h: liveStats?.cornersHome != null ? String(liveStats.cornersHome) : "0", a: liveStats?.cornersAway != null ? String(liveStats.cornersAway) : "0" },
+    { l: "Yellows", h: liveStats?.yellowsHome != null ? String(liveStats.yellowsHome) : "0", a: liveStats?.yellowsAway != null ? String(liveStats.yellowsAway) : "0" },
+    { l: "Reds", h: liveStats?.redsHome != null ? String(liveStats.redsHome) : "0", a: liveStats?.redsAway != null ? String(liveStats.redsAway) : "0" },
   ] : [];
 
-  const possHome = liveStats?.possessionHome ?? 50;
+  // Use corners ratio as a proxy for dominance since TxLINE doesn't provide possession
+  const totalCorners = (liveStats?.cornersHome ?? 0) + (liveStats?.cornersAway ?? 0);
+  const possHome = totalCorners > 0 ? Math.round(((liveStats?.cornersHome ?? 0) / totalCorners) * 100) : 50;
 
   return (
     <div className="relative rounded-[20px] overflow-hidden"
@@ -481,6 +481,29 @@ function MatchSummary({ fixture, events }: { fixture: Fixture; events: LiveEvent
     cards: { time: string; player: string; team: string; type: string }[];
     subs: { time: string; on: string; off: string; team: string }[];
   }> = {
+    // FINAL: Spain 1-0 Argentina (AET — Ferran Torres 106')
+    2626004: {
+      goals: [
+        { time: "106'", scorer: "Ferran Torres", team: "Spain", score: "1–0" },
+      ],
+      cards: [
+        { time: "90+3'", player: "Enzo Fernández", team: "Argentina", type: "Second yellow — Red card" },
+      ],
+      subs: [
+        { time: "62'", on: "Pedri", off: "Fabián Ruiz", team: "Spain" },
+        { time: "62'", on: "Ferran Torres", off: "Oyarzabal", team: "Spain" },
+        { time: "75'", on: "Nico Williams", off: "Baena", team: "Spain" },
+        { time: "75'", on: "Merino", off: "Olmo", team: "Spain" },
+        { time: "46'", on: "Paredes", off: "Nico González", team: "Argentina" },
+        { time: "58'", on: "Molina", off: "Montiel", team: "Argentina" },
+        { time: "70'", on: "Simeone", off: "De Paul", team: "Argentina" },
+        { time: "70'", on: "Medina", off: "Romero", team: "Argentina" },
+        { time: "99'", on: "Zubimendi", off: "Rodri", team: "Spain" },
+        { time: "99'", on: "Eric García", off: "Laporte", team: "Spain" },
+        { time: "102'", on: "Senesi", off: "Álvarez", team: "Argentina" },
+      ],
+    },
+    // 3RD PLACE: England 6-4 France
     2626003: {
       goals: [
         { time: "3'", scorer: "Rice", team: "England", score: "0–1" },
@@ -901,6 +924,10 @@ export default function Dashboard() {
             cornersAway: d.stats.cornersAway ?? d.stats.corners_away ?? undefined,
             foulsHome: d.stats.foulsHome ?? d.stats.fouls_home ?? undefined,
             foulsAway: d.stats.foulsAway ?? d.stats.fouls_away ?? undefined,
+            yellowsHome: d.stats.yellowsHome ?? undefined,
+            yellowsAway: d.stats.yellowsAway ?? undefined,
+            redsHome: d.stats.redsHome ?? undefined,
+            redsAway: d.stats.redsAway ?? undefined,
           });
         }
 
@@ -939,7 +966,40 @@ export default function Dashboard() {
           } : prev);
         }
 
-        // Rich event types
+        // Process events array from TxLINE polling stream
+        if (Array.isArray(d.events) && d.events.length > 0) {
+          for (const ev of d.events) {
+            const evMin = `${ev.minute ?? min}'`;
+            const detail = ev.detail || "";
+            if (ev.type === "goal") {
+              addLiveEvent({ time: evMin, text: detail, icon: "G", type: "goal" });
+            } else if (ev.type === "yellowCard") {
+              addLiveEvent({ time: evMin, text: detail, icon: "Y", type: "card" });
+            } else if (ev.type === "redCard") {
+              addLiveEvent({ time: evMin, text: detail, icon: "R", type: "card" });
+            } else if (ev.type === "corner") {
+              addLiveEvent({ time: evMin, text: detail, icon: "C", type: "corner" });
+            } else if (ev.type === "foul") {
+              addLiveEvent({ time: evMin, text: detail, icon: "F", type: "fk" });
+            } else if (ev.type === "shot") {
+              addLiveEvent({ time: evMin, text: detail, icon: "S", type: "tick" });
+            } else if (ev.type === "offside") {
+              addLiveEvent({ time: evMin, text: detail, icon: "O", type: "fk" });
+            } else if (ev.type === "penalty") {
+              addLiveEvent({ time: evMin, text: detail, icon: "P", type: "var" });
+            } else if (ev.type === "substitution") {
+              addLiveEvent({ time: evMin, text: detail, icon: "SUB", type: "tick" });
+            } else if (ev.type === "var") {
+              addLiveEvent({ time: evMin, text: detail, icon: "VAR", type: "var" });
+            } else if (ev.type === "throw_in") {
+              addLiveEvent({ time: evMin, text: detail, icon: "T", type: "tick" });
+            } else if (ev.type === "kickoff") {
+              addLiveEvent({ time: "KO", text: "Kick off", icon: "KO", type: "kickoff" });
+            }
+          }
+        }
+
+        // Rich event types (from demo stream which uses d.type directly)
         if (d.type === "goal") {
           // Already handled above via score change detection
         } else if (d.type === "yellowCard") {

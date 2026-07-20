@@ -51,6 +51,10 @@ export type LiveStats = {
   cornersAway?: number;
   foulsHome?: number;
   foulsAway?: number;
+  yellowsHome?: number;
+  yellowsAway?: number;
+  redsHome?: number;
+  redsAway?: number;
 };
 
 // Country codes – used for flag SVGs (via flagcdn.com) – no emoji, professional

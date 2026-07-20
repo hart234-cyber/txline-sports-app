@@ -283,7 +283,7 @@ function getDemoFixtures() {
       const isPast = msSince >= 7200000;
       const minute = isLive ? Math.min(90, Math.floor(msSince / 60000)) : 0;
 
-      const knownFT = new Set([2626003, 2626001, 2626002, 2625001, 2625002, 2625003, 2625004]);
+      const knownFT = new Set([2626003, 2626001, 2626002, 2625001, 2625002, 2625003, 2625004, 2626004]);
       let status = "Scheduled";
       if (knownFT.has(f.fixtureId)) status = "FT";
       else if (isPast) status = "FT";
@@ -300,15 +300,17 @@ function getDemoFixtures() {
         status,
         minute: isLive ? minute : 0,
         homeScore: ({
+          2626004: 1, // Spain 1-0 Argentina (Final, AET — Ferran Torres 106')
           2626003: 6, // England 6-4 France (3rd Place)
           2626001: 2, // Spain 2-0 France (SF)
           2626002: 2, // Argentina 2-1 England (SF)
           2625001: 2, // France 2-0 Morocco (QF)
-          2625002: 2, // Spain 2-1 Belgium (QF) — Sporting News says 1-0, Olympics.com says 2-1
+          2625002: 2, // Spain 2-1 Belgium (QF)
           2625003: 2, // England 2-1 Norway (QF, AET)
           2625004: 3, // Argentina 3-1 Switzerland (QF, AET)
         } as Record<number, number>)[f.fixtureId] ?? 0,
         awayScore: ({
+          2626004: 0, // Spain 1-0 Argentina
           2626003: 4,
           2626001: 0,
           2626002: 1,
